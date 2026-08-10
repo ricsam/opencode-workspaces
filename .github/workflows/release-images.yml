@@ -48,8 +48,45 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  build:
+  registry-access:
     needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify GHCR push access
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          for image in opencode-workspaces-control-plane opencode-workspaces-workspace; do
+            repository="$OWNER/$image"
+            token="$(curl --fail --silent --show-error \
+              --user "$ACTOR:$GHCR_TOKEN" \
+              "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull,push" \
+              | jq -r '.token')"
+
+            headers="$(mktemp)"
+            http_status="$(curl --silent --show-error --output /dev/null \
+              --dump-header "$headers" --write-out '%{http_code}' \
+              --request POST --header "Authorization: Bearer $token" \
+              "https://ghcr.io/v2/$repository/blobs/uploads/")"
+            upload_url="$(awk 'tolower($1) == "location:" {$1=""; sub(/^ /, ""); print}' \
+              "$headers" | tr -d '\r' | tail -1)"
+            unlink "$headers"
+
+            if [[ "$http_status" != 202 || -z "$upload_url" ]]; then
+              echo "GITHUB_TOKEN does not have GHCR push access to $repository" >&2
+              exit 1
+            fi
+            if [[ "$upload_url" == /* ]]; then
+              upload_url="https://ghcr.io$upload_url"
+            fi
+            curl --silent --show-error --output /dev/null --request DELETE \
+              --header "Authorization: Bearer $token" "$upload_url" || true
+          done
+
+  build:
+    needs: [metadata, registry-access]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
