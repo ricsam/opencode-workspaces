@@ -28,7 +28,7 @@ helm upgrade --install opencode-workspaces opencode-workspaces/opencode-workspac
   --set publicURL=https://code.example.com
 ```
 
-The chart defaults use the matching release tags from `ghcr.io/ricsam/opencode-workspaces-control-plane` and `ghcr.io/ricsam/opencode-workspaces-workspace`.
+The chart defaults use the matching release tags from `ghcr.io/ricsam/opencode-workspaces-server` and `ghcr.io/ricsam/opencode-workspaces-runtime`.
 
 The default chart runs bundled PostgreSQL and requests `rook-ceph-block` storage. For an external database:
 

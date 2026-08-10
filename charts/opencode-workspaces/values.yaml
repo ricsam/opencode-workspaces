@@ -1,11 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/ricsam/opencode-workspaces-control-plane
+  repository: ghcr.io/ricsam/opencode-workspaces-server
   tag: ""
   pullPolicy: IfNotPresent
 workspaceImage:
-  repository: ghcr.io/ricsam/opencode-workspaces-workspace
+  repository: ghcr.io/ricsam/opencode-workspaces-runtime
   tag: ""
   pullPolicy: IfNotPresent
 

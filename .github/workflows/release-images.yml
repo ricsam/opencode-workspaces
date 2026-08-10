@@ -21,8 +21,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  CONTROL_PLANE_IMAGE: ${{ github.repository_owner }}/opencode-workspaces-control-plane
-  WORKSPACE_IMAGE: ${{ github.repository_owner }}/opencode-workspaces-workspace
+  CONTROL_PLANE_IMAGE: ${{ github.repository_owner }}/opencode-workspaces-server
+  WORKSPACE_IMAGE: ${{ github.repository_owner }}/opencode-workspaces-runtime
 
 jobs:
   metadata:
@@ -58,7 +58,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           ACTOR: ${{ github.actor }}
         run: |
-          for image in opencode-workspaces-control-plane opencode-workspaces-workspace; do
+          for image in opencode-workspaces-server opencode-workspaces-runtime; do
             repository="$OWNER/$image"
             token="$(curl --fail --silent --show-error \
               --user "$ACTOR:$GHCR_TOKEN" \
@@ -93,10 +93,10 @@ jobs:
       matrix:
         include:
           - name: control-plane
-            image: opencode-workspaces-control-plane
+            image: opencode-workspaces-server
             dockerfile: build/Dockerfile.control-plane
           - name: workspace
-            image: opencode-workspaces-workspace
+            image: opencode-workspaces-runtime
             dockerfile: build/Dockerfile.workspace
     steps:
       - name: Checkout

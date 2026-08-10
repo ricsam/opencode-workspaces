@@ -24,10 +24,10 @@ helm show values opencode-workspaces/opencode-workspaces --version <version>
 
 | Value | Default | Description |
 | --- | --- | --- |
-| `image.repository` | `ghcr.io/ricsam/opencode-workspaces-control-plane` | Control-plane image repository. |
+| `image.repository` | `ghcr.io/ricsam/opencode-workspaces-server` | Control-plane image repository. |
 | `image.tag` | `""` | Control-plane tag; empty uses chart `appVersion`. |
 | `image.pullPolicy` | `IfNotPresent` | Control-plane pull policy. |
-| `workspaceImage.repository` | `ghcr.io/ricsam/opencode-workspaces-workspace` | Workspace image repository. |
+| `workspaceImage.repository` | `ghcr.io/ricsam/opencode-workspaces-runtime` | Workspace image repository. |
 | `workspaceImage.tag` | `""` | Workspace tag; empty uses chart `appVersion`. |
 | `workspaceImage.pullPolicy` | `IfNotPresent` | Workspace pull policy. |
 | `imagePullSecrets` | `[]` | Pull Secrets for the control plane. |

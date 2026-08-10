@@ -18,17 +18,17 @@ The default repositories are:
 
 ```yaml
 image:
-  repository: ghcr.io/ricsam/opencode-workspaces-control-plane
+  repository: ghcr.io/ricsam/opencode-workspaces-server
   tag: ""
   pullPolicy: IfNotPresent
 
 workspaceImage:
-  repository: ghcr.io/ricsam/opencode-workspaces-workspace
+  repository: ghcr.io/ricsam/opencode-workspaces-runtime
   tag: ""
   pullPolicy: IfNotPresent
 ```
 
-An empty tag resolves to `appVersion` from the chart. Released charts therefore pull immutable version tags such as `0.2.0`.
+An empty tag resolves to `appVersion` from the chart. Released charts therefore pull immutable version tags such as `0.2.1`.
 
 ## Public URL and proxy headers
 
