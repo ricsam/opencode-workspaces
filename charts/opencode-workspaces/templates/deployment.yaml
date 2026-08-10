@@ -68,6 +68,8 @@ spec:
               value: {{ .Values.workspace.idleTimeout | quote }}
             - name: WORKSPACE_RUNTIME_CLASS
               value: {{ .Values.workspace.runtimeClassName | quote }}
+            - name: WORKSPACE_NODE_SELECTOR
+              value: {{ toJson .Values.workspace.nodeSelector | quote }}
             - name: WORKSPACE_CPU_REQUEST
               value: {{ .Values.workspace.resources.requests.cpu | quote }}
             - name: WORKSPACE_MEMORY_REQUEST

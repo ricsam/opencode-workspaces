@@ -63,6 +63,7 @@ workspace:
   idleTimeout: 30m
   runtimeClassName: ""
   imagePullSecret: ""
+  nodeSelector: {}
   resources:
     requests:
       cpu: 500m
@@ -95,6 +96,9 @@ securityContext:
 networkPolicy:
   enabled: true
   workspaceInternetEgress: true
+  workspaceClusterEgress: []
+  # - namespace: ai-gateway
+  #   ports: [80]
 
 nodeSelector: {}
 tolerations: []

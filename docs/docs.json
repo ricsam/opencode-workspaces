@@ -32,6 +32,7 @@
         "pages": [
           "configuration",
           "authentication",
+          "workspace-provisioning",
           "workspaces"
         ]
       },

@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -32,6 +33,7 @@ type Workspace struct {
 	StorageClass      string
 	StorageSize       string
 	RuntimeClassName  string
+	NodeSelector      map[string]string
 	CPURequest        string
 	MemoryRequest     string
 	CPULimit          string
@@ -70,6 +72,17 @@ func Load() (Config, error) {
 	if err != nil || interval <= 0 {
 		return Config{}, errors.New("RECONCILE_INTERVAL must be a positive duration")
 	}
+	selector := map[string]string{}
+	if raw := strings.TrimSpace(os.Getenv("WORKSPACE_NODE_SELECTOR")); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &selector); err != nil {
+			return Config{}, fmt.Errorf("WORKSPACE_NODE_SELECTOR must be a JSON object of string labels: %w", err)
+		}
+		for key, value := range selector {
+			if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+				return Config{}, errors.New("WORKSPACE_NODE_SELECTOR labels and values must not be empty")
+			}
+		}
+	}
 
 	cfg := Config{
 		Address:       env("HTTP_ADDRESS", ":8080"),
@@ -88,6 +101,7 @@ func Load() (Config, error) {
 			StorageClass:      env("WORKSPACE_STORAGE_CLASS", "rook-ceph-block"),
 			StorageSize:       env("WORKSPACE_STORAGE_SIZE", "10Gi"),
 			RuntimeClassName:  strings.TrimSpace(os.Getenv("WORKSPACE_RUNTIME_CLASS")),
+			NodeSelector:      selector,
 			CPURequest:        env("WORKSPACE_CPU_REQUEST", "250m"),
 			MemoryRequest:     env("WORKSPACE_MEMORY_REQUEST", "512Mi"),
 			CPULimit:          env("WORKSPACE_CPU_LIMIT", "2"),

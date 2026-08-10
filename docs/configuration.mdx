@@ -28,7 +28,7 @@ workspaceImage:
   pullPolicy: IfNotPresent
 ```
 
-An empty tag resolves to `appVersion` from the chart. Released charts therefore pull immutable version tags such as `0.1.0`.
+An empty tag resolves to `appVersion` from the chart. Released charts therefore pull immutable version tags such as `0.2.0`.
 
 ## Public URL and proxy headers
 
@@ -48,6 +48,8 @@ workspace:
   idleTimeout: 30m
   runtimeClassName: kata
   imagePullSecret: ""
+  nodeSelector:
+    kubernetes.io/hostname: workspace-node-1
   resources:
     requests:
       cpu: 500m
@@ -81,6 +83,9 @@ Only one control-plane replica is currently supported because workspace lifecycl
 networkPolicy:
   enabled: true
   workspaceInternetEgress: true
+  workspaceClusterEgress:
+    - namespace: ai-gateway
+      ports: [80]
 ```
 
 When enabled, policies:
@@ -90,5 +95,7 @@ When enabled, policies:
 - allow DNS resolution;
 - deny workspace access to RFC1918 destinations;
 - optionally allow workspace internet egress.
+
+`workspaceClusterEgress` is an explicit allowlist for in-cluster dependencies. Each entry permits TCP from workspace pods to all pods in the named namespace on only the listed ports. This is useful for an internal AI gateway service while RFC1918 egress remains denied by default.
 
 Your CNI must enforce Kubernetes NetworkPolicy. Review the rendered rules against your cluster DNS, database, ingress, and egress architecture before deployment.

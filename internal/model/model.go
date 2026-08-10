@@ -23,6 +23,13 @@ type Workspace struct {
 	LastActivityAt time.Time `json:"lastActivityAt"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
+	ConfigRevision int64     `json:"configRevision"`
+}
+
+type WorkspaceConfiguration struct {
+	OpenCodeJSON []byte `json:"opencodeJson"`
+	APIKey       string `json:"apiKey"`
+	Revision     int64  `json:"revision"`
 }
 
 type WorkspaceStatus struct {
@@ -50,6 +57,7 @@ type OIDCSettings struct {
 	ClientSecret    string   `json:"clientSecret,omitempty"`
 	Scopes          []string `json:"scopes"`
 	AutoProvision   bool     `json:"autoProvision"`
+	LinkByEmail     bool     `json:"linkExistingUsersByEmail"`
 	AllowedDomains  []string `json:"allowedDomains"`
 	AdminGroups     []string `json:"adminGroups"`
 	HasClientSecret bool     `json:"hasClientSecret"`

@@ -1,0 +1,63 @@
+---
+title: "Workspace provisioning"
+description: "Pre-create accounts and inject managed OpenCode configuration securely"
+---
+
+The control-plane image includes `/usr/local/bin/opencode-workspaces-provision` for repeatable account migrations and managed per-user OpenCode configuration. Run it inside the control-plane pod after creating the initial local administrator.
+
+The command reads a versioned JSON manifest from standard input. It never prints API keys and stores each key and configuration document encrypted in PostgreSQL with the installation `ENCRYPTION_KEY`.
+
+```json
+{
+  "version": 1,
+  "oidc": {
+    "issuer": "https://identity.example.com/tenant/v2.0",
+    "scopes": ["openid", "profile", "email"],
+    "allowedDomains": ["example.com"],
+    "linkExistingUsersByEmail": true,
+    "autoProvision": false,
+    "enabled": false
+  },
+  "users": [
+    {
+      "username": "ada",
+      "displayName": "Ada Lovelace",
+      "email": "ada@example.com",
+      "role": "user",
+      "disabled": false,
+      "apiKey": "aig_one-time-value",
+      "opencodeConfig": {
+        "$schema": "https://opencode.ai/config.json",
+        "provider": {
+          "company": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Company AI Gateway",
+            "options": {
+              "baseURL": "http://ai-gateway.ai-gateway.svc/v1",
+              "apiKey": "{file:/workspace/home/.config/opencode/ai-gateway.key}"
+            },
+            "models": {
+              "example-model": { "name": "Example model" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Pipe the manifest directly from a protected process or file and remove any temporary plaintext copy immediately after the command succeeds:
+
+```bash
+kubectl -n opencode-workspaces exec -i deploy/opencode-workspaces-opencode-workspaces \
+  -- /usr/local/bin/opencode-workspaces-provision < provisioning.json
+```
+
+Users are matched by normalized email. Existing account roles, enabled state, profile fields, and managed workspace configuration are updated; missing accounts and workspace records are created. Provisioned users do not receive an invented local password. They authenticate through the configured OIDC provider, while the separately bootstrapped administrator remains a recovery-capable local account.
+
+On every workspace pod boot, an init container copies the managed document to `~/.config/opencode/opencode.json` and the API key to `~/.config/opencode/ai-gateway.key`, both with mode `0600`. The OpenCode configuration references the key through `{file:...}`, so the credential is not embedded in the JSON document. Updating the encrypted configuration increments its revision and rolls the user's workspace pod on the next reconciliation.
+
+<Warning>
+  Provisioning manifests contain live user credentials. Do not commit them, include them in shell tracing, or retain them in ordinary build artifacts. Kubernetes Secrets and the PostgreSQL backup must be protected as credential-bearing data.
+</Warning>

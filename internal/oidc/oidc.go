@@ -171,6 +171,15 @@ func (m *Manager) Callback(w http.ResponseWriter, r *http.Request) (model.User, 
 	if !errors.Is(err, database.ErrNotFound) {
 		return model.User{}, err
 	}
+	if settings.LinkByEmail {
+		user, err = m.Store.LinkOIDCUserByEmail(r.Context(), settings.Issuer, c.Subject, c.Email, r.RemoteAddr)
+		if err == nil {
+			return user, nil
+		}
+		if !errors.Is(err, database.ErrNotFound) {
+			return model.User{}, fmt.Errorf("link existing OIDC account: %w", err)
+		}
+	}
 	if !settings.AutoProvision {
 		return model.User{}, errors.New("OIDC account has not been provisioned")
 	}

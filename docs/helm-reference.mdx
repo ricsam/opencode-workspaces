@@ -70,6 +70,7 @@ helm show values opencode-workspaces/opencode-workspaces --version <version>
 | `workspace.idleTimeout` | `30m` | Inactivity before scale-to-zero; `0s` disables. |
 | `workspace.runtimeClassName` | `""` | RuntimeClass for dynamically created workspace pods. |
 | `workspace.imagePullSecret` | `""` | Pull Secret for workspace pods. |
+| `workspace.nodeSelector` | `{}` | Node selector for dynamically created workspace pods. |
 | `workspace.resources` | See defaults | CPU and memory requests and limits per workspace. |
 
 ## Security and scheduling
@@ -80,6 +81,7 @@ helm show values opencode-workspaces/opencode-workspaces --version <version>
 | `securityContext` | Read-only, no privilege escalation, all capabilities dropped | Control-plane container security context. |
 | `networkPolicy.enabled` | `true` | Create control-plane, workspace, and database policies. |
 | `networkPolicy.workspaceInternetEgress` | `true` | Allow non-private IPv4 workspace egress. |
-| `nodeSelector` | `{}` | Control-plane node selector. |
+| `networkPolicy.workspaceClusterEgress` | `[]` | Named namespaces and TCP ports that workspace pods may reach. |
+| `nodeSelector` | `{}` | Control-plane and bundled PostgreSQL node selector. |
 | `tolerations` | `[]` | Control-plane tolerations. |
 | `affinity` | `{}` | Control-plane affinity rules. |

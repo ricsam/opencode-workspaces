@@ -34,6 +34,7 @@ In `/platform/admin`, configure:
 - issuer URL;
 - client ID and client secret;
 - whether just-in-time provisioning is enabled;
+- whether a pre-provisioned account can be linked by exact verified email;
 - allowed email domains;
 - groups whose members become administrators.
 
@@ -42,6 +43,8 @@ The provider must support discovery, authorization code flow, PKCE, and ID token
 <Tip>
   Begin with just-in-time provisioning disabled. Validate a pre-provisioned account, then enable provisioning with a narrow allowed-domain list.
 </Tip>
+
+For migrations to a new OIDC client, enable **Link a pre-provisioned account by verified email** and leave automatic provisioning disabled. On first login, the service requires a verified email, finds exactly the pre-created account with that normalized email, and stores the new issuer/subject link. The unique issuer-to-user constraint prevents a second subject from silently replacing an established identity.
 
 ## Secret handling
 

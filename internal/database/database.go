@@ -232,6 +232,52 @@ func (s *Store) ListUsers(ctx context.Context) ([]model.User, error) {
 	return users, rows.Err()
 }
 
+type ProvisionUserInput struct {
+	Username    string
+	DisplayName string
+	Email       string
+	Role        string
+	Disabled    bool
+}
+
+// ProvisionUser creates or updates an externally managed account by normalized
+// email. It intentionally does not create a local credential; OIDC can link the
+// pre-provisioned account on first login without inventing a shared password.
+func (s *Store) ProvisionUser(ctx context.Context, actor string, input ProvisionUserInput) (model.User, error) {
+	var user model.User
+	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, `SELECT `+userColumns+` FROM users WHERE lower(email)=lower($1)`, input.Email).
+			Scan(&user.ID, &user.Username, &user.DisplayName, &user.Email, &user.Role, &user.Disabled, &user.CreatedAt, &user.LastLoginAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			user, err = insertUser(ctx, tx, input.Username, input.DisplayName, input.Email, input.Role, "")
+			if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if user.ID == actor {
+				input.Role = "admin"
+				input.Disabled = false
+			}
+			err = tx.QueryRow(ctx, `UPDATE users SET username=$2,display_name=$3,role=$4,disabled=$5,updated_at=now() WHERE id=$1
+				RETURNING `+userColumns, user.ID, input.Username, input.DisplayName, input.Role, input.Disabled).
+				Scan(&user.ID, &user.Username, &user.DisplayName, &user.Email, &user.Role, &user.Disabled, &user.CreatedAt, &user.LastLoginAt)
+			if err != nil {
+				return err
+			}
+		}
+		if input.Disabled && !user.Disabled {
+			if err := tx.QueryRow(ctx, `UPDATE users SET disabled=true,updated_at=now() WHERE id=$1 RETURNING `+userColumns, user.ID).
+				Scan(&user.ID, &user.Username, &user.DisplayName, &user.Email, &user.Role, &user.Disabled, &user.CreatedAt, &user.LastLoginAt); err != nil {
+				return err
+			}
+		}
+		return audit(ctx, tx, actor, "user.provision", "user", user.ID, `{}`, "")
+	})
+	return user, err
+}
+
 func (s *Store) UpdateUser(ctx context.Context, actor, id, displayName, email, role string, disabled bool, passwordHash, remote string) error {
 	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `UPDATE users SET display_name=$2,email=NULLIF($3,''),role=$4,disabled=$5,updated_at=now() WHERE id=$1`, id, displayName, email, role, disabled)
@@ -281,8 +327,9 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash []byte) error {
 
 func (s *Store) Workspace(ctx context.Context, userID string) (model.Workspace, error) {
 	var w model.Workspace
-	err := s.Pool.QueryRow(ctx, `SELECT user_id,resource_name,desired_state,restart_nonce,last_activity_at,created_at,updated_at FROM workspaces WHERE user_id=$1`, userID).
-		Scan(&w.UserID, &w.ResourceName, &w.DesiredState, &w.RestartNonce, &w.LastActivityAt, &w.CreatedAt, &w.UpdatedAt)
+	err := s.Pool.QueryRow(ctx, `SELECT w.user_id,w.resource_name,w.desired_state,w.restart_nonce,w.last_activity_at,w.created_at,w.updated_at,COALESCE(c.revision,0)
+		FROM workspaces w LEFT JOIN workspace_configurations c ON c.user_id=w.user_id WHERE w.user_id=$1`, userID).
+		Scan(&w.UserID, &w.ResourceName, &w.DesiredState, &w.RestartNonce, &w.LastActivityAt, &w.CreatedAt, &w.UpdatedAt, &w.ConfigRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return w, ErrNotFound
 	}
@@ -290,7 +337,8 @@ func (s *Store) Workspace(ctx context.Context, userID string) (model.Workspace, 
 }
 
 func (s *Store) ListWorkspaces(ctx context.Context) ([]model.Workspace, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT user_id,resource_name,desired_state,restart_nonce,last_activity_at,created_at,updated_at FROM workspaces ORDER BY created_at`)
+	rows, err := s.Pool.Query(ctx, `SELECT w.user_id,w.resource_name,w.desired_state,w.restart_nonce,w.last_activity_at,w.created_at,w.updated_at,COALESCE(c.revision,0)
+		FROM workspaces w LEFT JOIN workspace_configurations c ON c.user_id=w.user_id ORDER BY w.created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -298,12 +346,61 @@ func (s *Store) ListWorkspaces(ctx context.Context) ([]model.Workspace, error) {
 	var result []model.Workspace
 	for rows.Next() {
 		var w model.Workspace
-		if err := rows.Scan(&w.UserID, &w.ResourceName, &w.DesiredState, &w.RestartNonce, &w.LastActivityAt, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.UserID, &w.ResourceName, &w.DesiredState, &w.RestartNonce, &w.LastActivityAt, &w.CreatedAt, &w.UpdatedAt, &w.ConfigRevision); err != nil {
 			return nil, err
 		}
 		result = append(result, w)
 	}
 	return result, rows.Err()
+}
+
+func (s *Store) SetWorkspaceConfiguration(ctx context.Context, actor, userID string, opencodeJSON []byte, apiKey string) error {
+	var document map[string]any
+	if len(opencodeJSON) == 0 || json.Unmarshal(opencodeJSON, &document) != nil || document == nil {
+		return errors.New("OpenCode configuration must be a JSON object")
+	}
+	if strings.TrimSpace(apiKey) == "" {
+		return errors.New("workspace API key is required")
+	}
+	configCiphertext, err := s.encrypt(opencodeJSON)
+	if err != nil {
+		return err
+	}
+	keyCiphertext, err := s.encrypt([]byte(apiKey))
+	if err != nil {
+		return err
+	}
+	return pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO workspace_configurations(user_id,opencode_json_ciphertext,api_key_ciphertext)
+			VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET opencode_json_ciphertext=EXCLUDED.opencode_json_ciphertext,
+			api_key_ciphertext=EXCLUDED.api_key_ciphertext,revision=workspace_configurations.revision+1,updated_at=now()`, userID, configCiphertext, keyCiphertext); err != nil {
+			return err
+		}
+		return audit(ctx, tx, actor, "workspace.configuration.update", "workspace", userID, `{}`, "")
+	})
+}
+
+func (s *Store) WorkspaceConfiguration(ctx context.Context, userID string) (model.WorkspaceConfiguration, error) {
+	var result model.WorkspaceConfiguration
+	var configCiphertext, keyCiphertext string
+	err := s.Pool.QueryRow(ctx, `SELECT opencode_json_ciphertext,api_key_ciphertext,revision FROM workspace_configurations WHERE user_id=$1`, userID).
+		Scan(&configCiphertext, &keyCiphertext, &result.Revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return result, ErrNotFound
+	}
+	if err != nil {
+		return result, err
+	}
+	result.OpenCodeJSON, err = s.decrypt(configCiphertext)
+	if err != nil {
+		return result, err
+	}
+	key, err := s.decrypt(keyCiphertext)
+	if err != nil {
+		return result, err
+	}
+	result.APIKey = string(key)
+	return result, nil
 }
 
 func (s *Store) SetWorkspaceState(ctx context.Context, actor, userID, state, remote string, restart bool) error {
@@ -429,6 +526,31 @@ func (s *Store) OIDCUser(ctx context.Context, issuer, subject string) (model.Use
 	if errors.Is(err, pgx.ErrNoRows) {
 		return user, ErrNotFound
 	}
+	return user, err
+}
+
+func (s *Store) LinkOIDCUserByEmail(ctx context.Context, issuer, subject, email, remote string) (model.User, error) {
+	var user model.User
+	err := pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
+		var err error
+		user, err = scanUser(tx.QueryRow(ctx, `SELECT `+userColumns+` FROM users WHERE lower(email)=lower($1)`, strings.TrimSpace(email)))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if user.Disabled {
+			return ErrNotFound
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO oidc_identities(issuer,subject,user_id,email) VALUES($1,$2,$3,$4)`, issuer, subject, user.ID, email); err != nil {
+			if strings.Contains(err.Error(), "duplicate key") {
+				return ErrConflict
+			}
+			return err
+		}
+		return audit(ctx, tx, user.ID, "oidc.identity.link", "user", user.ID, `{}`, remote)
+	})
 	return user, err
 }
 

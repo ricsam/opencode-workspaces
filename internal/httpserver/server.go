@@ -348,7 +348,7 @@ func (s *Server) saveOIDC(w http.ResponseWriter, r *http.Request) {
 	if secret == "" {
 		secret = old.ClientSecret
 	}
-	settings := model.OIDCSettings{Enabled: r.FormValue("enabled") != "", Issuer: r.FormValue("issuer"), ClientID: r.FormValue("client_id"), ClientSecret: secret, Scopes: []string{"openid", "profile", "email"}, AutoProvision: r.FormValue("auto_provision") != "", AllowedDomains: csv(r.FormValue("allowed_domains")), AdminGroups: csv(r.FormValue("admin_groups"))}
+	settings := model.OIDCSettings{Enabled: r.FormValue("enabled") != "", Issuer: r.FormValue("issuer"), ClientID: r.FormValue("client_id"), ClientSecret: secret, Scopes: []string{"openid", "profile", "email"}, AutoProvision: r.FormValue("auto_provision") != "", LinkByEmail: r.FormValue("link_by_email") != "", AllowedDomains: csv(r.FormValue("allowed_domains")), AdminGroups: csv(r.FormValue("admin_groups"))}
 	if err := s.OIDC.Save(r.Context(), actor.ID, settings, r.RemoteAddr); err != nil {
 		s.error(w, r, err, 400)
 		return

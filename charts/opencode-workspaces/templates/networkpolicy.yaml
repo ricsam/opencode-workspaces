@@ -60,6 +60,17 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- range .Values.networkPolicy.workspaceClusterEgress }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .namespace | quote }}
+      ports:
+        {{- range .ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
     {{- if .Values.networkPolicy.workspaceInternetEgress }}
     - to:
         - ipBlock:

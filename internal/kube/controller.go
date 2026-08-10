@@ -212,20 +212,52 @@ func (c *Controller) ensurePVC(ctx context.Context, w model.Workspace) error {
 	return err
 }
 func (c *Controller) ensureSecret(ctx context.Context, w model.Workspace) error {
-	_, err := c.Client.CoreV1().Secrets(c.Config.Namespace).Get(ctx, w.ResourceName+"-auth", metav1.GetOptions{})
-	if err == nil {
+	name := w.ResourceName + "-auth"
+	configuration, configErr := c.Store.WorkspaceConfiguration(ctx, w.UserID)
+	if configErr != nil && !errors.Is(configErr, database.ErrNotFound) {
+		return configErr
+	}
+	revision := "0"
+	if configErr == nil {
+		revision = fmt.Sprint(configuration.Revision)
+	}
+	current, err := c.Client.CoreV1().Secrets(c.Config.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		password := make([]byte, 32)
+		if _, err := rand.Read(password); err != nil {
+			return err
+		}
+		secret := &corev1.Secret{ObjectMeta: c.meta(w), Type: corev1.SecretTypeOpaque, Data: map[string][]byte{"username": []byte("opencode"), "password": []byte(base64.RawURLEncoding.EncodeToString(password))}}
+		secret.Name = name
+		secret.Annotations = map[string]string{"opencode.workspaces/config-revision": revision}
+		if configErr == nil {
+			secret.Data["opencode.json"] = configuration.OpenCodeJSON
+			secret.Data["ai-gateway.key"] = []byte(configuration.APIKey)
+		}
+		_, err = c.Client.CoreV1().Secrets(c.Config.Namespace).Create(ctx, secret, metav1.CreateOptions{})
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	if current.Annotations["opencode.workspaces/config-revision"] == revision {
 		return nil
 	}
-	if !apierrors.IsNotFound(err) {
-		return err
+	if current.Annotations == nil {
+		current.Annotations = map[string]string{}
 	}
-	password := make([]byte, 32)
-	if _, err := rand.Read(password); err != nil {
-		return err
+	current.Annotations["opencode.workspaces/config-revision"] = revision
+	if current.Data == nil {
+		current.Data = map[string][]byte{}
 	}
-	secret := &corev1.Secret{ObjectMeta: c.meta(w), Type: corev1.SecretTypeOpaque, Data: map[string][]byte{"username": []byte("opencode"), "password": []byte(base64.RawURLEncoding.EncodeToString(password))}}
-	secret.Name = w.ResourceName + "-auth"
-	_, err = c.Client.CoreV1().Secrets(c.Config.Namespace).Create(ctx, secret, metav1.CreateOptions{})
+	if configErr == nil {
+		current.Data["opencode.json"] = configuration.OpenCodeJSON
+		current.Data["ai-gateway.key"] = []byte(configuration.APIKey)
+	} else {
+		delete(current.Data, "opencode.json")
+		delete(current.Data, "ai-gateway.key")
+	}
+	_, err = c.Client.CoreV1().Secrets(c.Config.Namespace).Update(ctx, current, metav1.UpdateOptions{})
 	return err
 }
 func (c *Controller) ensureService(ctx context.Context, w model.Workspace) error {
@@ -261,8 +293,28 @@ func (c *Controller) ensureDeployment(ctx context.Context, w model.Workspace) er
 func (c *Controller) podSpec(w model.Workspace) corev1.PodSpec {
 	allow := false
 	runAs := int64(0)
+	secretMode := int32(0400)
 	seccomp := corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
-	spec := corev1.PodSpec{AutomountServiceAccountToken: ptr(false), EnableServiceLinks: ptr(false), SecurityContext: &corev1.PodSecurityContext{SeccompProfile: &seccomp}, Containers: []corev1.Container{{Name: "workspace", Image: c.Config.Workspace.Image, ImagePullPolicy: corev1.PullPolicy(c.Config.Workspace.ImagePullPolicy), Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: c.Config.Workspace.Port}}, SecurityContext: &corev1.SecurityContext{RunAsUser: &runAs, RunAsNonRoot: ptr(false), Privileged: ptr(false), AllowPrivilegeEscalation: &allow, Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}, SeccompProfile: &seccomp}, Env: []corev1.EnvVar{{Name: "OPENCODE_SERVER_USERNAME", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: w.ResourceName + "-auth"}, Key: "username"}}}, {Name: "OPENCODE_SERVER_PASSWORD", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: w.ResourceName + "-auth"}, Key: "password"}}}, {Name: "HOME", Value: "/workspace/home"}, {Name: "XDG_DATA_HOME", Value: "/workspace/home/.local/share"}, {Name: "XDG_CONFIG_HOME", Value: "/workspace/home/.config"}, {Name: "WORKSPACE_DIR", Value: "/workspace/projects"}}, VolumeMounts: []corev1.VolumeMount{{Name: "workspace", MountPath: "/workspace"}}, Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(c.Config.Workspace.CPURequest), corev1.ResourceMemory: resource.MustParse(c.Config.Workspace.MemoryRequest)}, Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(c.Config.Workspace.CPULimit), corev1.ResourceMemory: resource.MustParse(c.Config.Workspace.MemoryLimit)}}, ReadinessProbe: &corev1.Probe{ProbeHandler: corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrValue(c.Config.Workspace.Port)}}, InitialDelaySeconds: 3, PeriodSeconds: 5}, LivenessProbe: &corev1.Probe{ProbeHandler: corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrValue(c.Config.Workspace.Port)}}, InitialDelaySeconds: 20, PeriodSeconds: 20}}}, Volumes: []corev1.Volume{{Name: "workspace", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: w.ResourceName}}}}}
+	containerSecurity := &corev1.SecurityContext{RunAsUser: &runAs, RunAsNonRoot: ptr(false), Privileged: ptr(false), AllowPrivilegeEscalation: &allow, Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}, SeccompProfile: &seccomp}
+	bootstrapCommand := `set -euo pipefail
+config_dir=/workspace/home/.config/opencode
+if [[ -s /bootstrap/opencode.json ]]; then
+  mkdir -p "$config_dir"
+  cp /bootstrap/opencode.json "$config_dir/opencode.json"
+  chmod 600 "$config_dir/opencode.json"
+fi
+if [[ -s /bootstrap/ai-gateway.key ]]; then
+  mkdir -p "$config_dir"
+  cp /bootstrap/ai-gateway.key "$config_dir/ai-gateway.key"
+  chmod 600 "$config_dir/ai-gateway.key"
+fi`
+	spec := corev1.PodSpec{
+		AutomountServiceAccountToken: ptr(false), EnableServiceLinks: ptr(false), SecurityContext: &corev1.PodSecurityContext{SeccompProfile: &seccomp},
+		InitContainers: []corev1.Container{{Name: "workspace-bootstrap", Image: c.Config.Workspace.Image, ImagePullPolicy: corev1.PullPolicy(c.Config.Workspace.ImagePullPolicy), Command: []string{"/bin/bash", "-c", bootstrapCommand}, SecurityContext: containerSecurity, VolumeMounts: []corev1.VolumeMount{{Name: "workspace", MountPath: "/workspace"}, {Name: "bootstrap", MountPath: "/bootstrap", ReadOnly: true}}}},
+		Containers:     []corev1.Container{{Name: "workspace", Image: c.Config.Workspace.Image, ImagePullPolicy: corev1.PullPolicy(c.Config.Workspace.ImagePullPolicy), Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: c.Config.Workspace.Port}}, SecurityContext: containerSecurity, Env: []corev1.EnvVar{{Name: "OPENCODE_SERVER_USERNAME", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: w.ResourceName + "-auth"}, Key: "username"}}}, {Name: "OPENCODE_SERVER_PASSWORD", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: w.ResourceName + "-auth"}, Key: "password"}}}, {Name: "HOME", Value: "/workspace/home"}, {Name: "XDG_DATA_HOME", Value: "/workspace/home/.local/share"}, {Name: "XDG_CONFIG_HOME", Value: "/workspace/home/.config"}, {Name: "WORKSPACE_DIR", Value: "/workspace/projects"}}, VolumeMounts: []corev1.VolumeMount{{Name: "workspace", MountPath: "/workspace"}}, Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(c.Config.Workspace.CPURequest), corev1.ResourceMemory: resource.MustParse(c.Config.Workspace.MemoryRequest)}, Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(c.Config.Workspace.CPULimit), corev1.ResourceMemory: resource.MustParse(c.Config.Workspace.MemoryLimit)}}, ReadinessProbe: &corev1.Probe{ProbeHandler: corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrValue(c.Config.Workspace.Port)}}, InitialDelaySeconds: 3, PeriodSeconds: 5}, LivenessProbe: &corev1.Probe{ProbeHandler: corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrValue(c.Config.Workspace.Port)}}, InitialDelaySeconds: 20, PeriodSeconds: 20}}},
+		Volumes:        []corev1.Volume{{Name: "workspace", VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: w.ResourceName}}}, {Name: "bootstrap", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: w.ResourceName + "-auth", DefaultMode: &secretMode}}}},
+		NodeSelector:   c.Config.Workspace.NodeSelector,
+	}
 	if c.Config.Workspace.RuntimeClassName != "" {
 		spec.RuntimeClassName = &c.Config.Workspace.RuntimeClassName
 	}

@@ -13,6 +13,7 @@ test:
 
 build:
 	CGO_ENABLED=0 $(GO) build -o bin/opencode-workspaces ./cmd/server
+	CGO_ENABLED=0 $(GO) build -o bin/opencode-workspaces-provision ./cmd/provision
 
 lint:
 	$(GO) vet ./...
