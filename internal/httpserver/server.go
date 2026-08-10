@@ -238,9 +238,23 @@ func (s *Server) admin(w http.ResponseWriter, r *http.Request) {
 		s.error(w, r, err, 500)
 		return
 	}
+	workspaces, err := s.Store.ListWorkspaces(r.Context())
+	if err != nil {
+		s.error(w, r, err, 500)
+		return
+	}
+	workspacesByUser := make(map[string]model.Workspace, len(workspaces))
+	for _, workspace := range workspaces {
+		workspacesByUser[workspace.UserID] = workspace
+	}
+	statuses, err := s.Controller.Statuses(r.Context(), workspaces)
+	if err != nil {
+		s.error(w, r, err, 500)
+		return
+	}
 	for _, u := range users {
-		workspace, _ := s.Store.Workspace(r.Context(), u.ID)
-		status, _ := s.Controller.Status(r.Context(), workspace)
+		workspace := workspacesByUser[u.ID]
+		status := statuses[workspace.ResourceName]
 		data.Rows = append(data.Rows, adminRow{u, workspace, status})
 	}
 	data.Audit, _ = s.Store.AuditEvents(r.Context(), 50)

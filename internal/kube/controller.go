@@ -152,27 +152,75 @@ func (c *Controller) Status(ctx context.Context, w model.Workspace) (model.Works
 	if err != nil {
 		return model.WorkspaceStatus{}, err
 	}
+	pods, err := c.Client.CoreV1().Pods(c.Config.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labels.Set{"app.kubernetes.io/managed-by": managedBy, "opencode.workspaces/name": w.ResourceName}.String()})
+	var pod *corev1.Pod
+	if err == nil && len(pods.Items) > 0 {
+		pod = &pods.Items[0]
+	}
+	return workspaceStatus(deployment, pod), nil
+}
+
+// Statuses resolves an administrator's workspace table with two Kubernetes API
+// calls instead of issuing deployment and pod requests for every user.
+func (c *Controller) Statuses(ctx context.Context, workspaces []model.Workspace) (map[string]model.WorkspaceStatus, error) {
+	selector := labels.Set{"app.kubernetes.io/managed-by": managedBy}.String()
+	deployments, err := c.Client.AppsV1().Deployments(c.Config.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return nil, err
+	}
+	pods, err := c.Client.CoreV1().Pods(c.Config.Namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentsByName := make(map[string]*appsv1.Deployment, len(deployments.Items))
+	for index := range deployments.Items {
+		deployment := &deployments.Items[index]
+		deploymentsByName[deployment.Name] = deployment
+	}
+	podsByWorkspace := make(map[string]*corev1.Pod, len(pods.Items))
+	for index := range pods.Items {
+		pod := &pods.Items[index]
+		name := pod.Labels["opencode.workspaces/name"]
+		if name != "" {
+			podsByWorkspace[name] = pod
+		}
+	}
+
+	result := make(map[string]model.WorkspaceStatus, len(workspaces))
+	for _, workspace := range workspaces {
+		deployment := deploymentsByName[workspace.ResourceName]
+		if deployment == nil {
+			result[workspace.ResourceName] = model.WorkspaceStatus{Phase: "stopped"}
+			continue
+		}
+		result[workspace.ResourceName] = workspaceStatus(deployment, podsByWorkspace[workspace.ResourceName])
+	}
+	return result, nil
+}
+
+func workspaceStatus(deployment *appsv1.Deployment, pod *corev1.Pod) model.WorkspaceStatus {
 	status := model.WorkspaceStatus{Exists: true, Replicas: deployment.Status.Replicas, ReadyReplicas: deployment.Status.ReadyReplicas, Ready: deployment.Status.ReadyReplicas > 0, Phase: "starting"}
 	if deployment.Spec.Replicas != nil && *deployment.Spec.Replicas == 0 {
 		status.Phase = "stopped"
 	} else if status.Ready {
 		status.Phase = "running"
 	}
-	pods, err := c.Client.CoreV1().Pods(c.Config.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labels.Set{"app.kubernetes.io/managed-by": managedBy, "opencode.workspaces/name": w.ResourceName}.String()})
-	if err == nil && len(pods.Items) > 0 {
-		status.PodName = pods.Items[0].Name
-		if pods.Items[0].Status.StartTime != nil {
-			status.StartedAt = pods.Items[0].Status.StartTime.Time
-		}
-		if !status.Ready {
-			for _, condition := range pods.Items[0].Status.Conditions {
-				if condition.Type == corev1.PodReady && condition.Message != "" {
-					status.Message = condition.Message
-				}
+	if pod == nil {
+		return status
+	}
+	status.PodName = pod.Name
+	if pod.Status.StartTime != nil {
+		status.StartedAt = pod.Status.StartTime.Time
+	}
+	if !status.Ready {
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Message != "" {
+				status.Message = condition.Message
 			}
 		}
 	}
-	return status, nil
+	return status
 }
 
 func (c *Controller) Backend(ctx context.Context, userID string) (string, string, error) {
