@@ -1,8 +1,17 @@
 {{- if .Values.postgresql.enabled }}
+{{- $postgresqlName := printf "%s-postgresql" (include "opencode-workspaces.fullname" .) }}
+{{- $existingPostgresql := lookup "apps/v1" "StatefulSet" .Release.Namespace $postgresqlName }}
+{{- $existingClaimLabels := dict }}
+{{- if $existingPostgresql }}
+  {{- $existingClaimTemplates := get $existingPostgresql.spec "volumeClaimTemplates" }}
+  {{- if $existingClaimTemplates }}
+    {{- $existingClaimLabels = default (dict) (get (index $existingClaimTemplates 0).metadata "labels") }}
+  {{- end }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "opencode-workspaces.fullname" . }}-postgresql
+  name: {{ $postgresqlName }}
   labels:
     {{- include "opencode-workspaces.labels" . | nindent 4 }}
 spec:
@@ -17,11 +26,11 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "opencode-workspaces.fullname" . }}-postgresql
+  name: {{ $postgresqlName }}
   labels:
     {{- include "opencode-workspaces.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "opencode-workspaces.fullname" . }}-postgresql
+  serviceName: {{ $postgresqlName }}
   replicas: 1
   selector:
     matchLabels:
@@ -87,7 +96,13 @@ spec:
     - metadata:
         name: data
         labels:
-          {{- include "opencode-workspaces.labels" . | nindent 10 }}
+          {{- if $existingClaimLabels }}
+          {{- toYaml $existingClaimLabels | nindent 10 }}
+          {{- else }}
+          app.kubernetes.io/name: {{ include "opencode-workspaces.name" . }}
+          app.kubernetes.io/instance: {{ .Release.Name }}
+          app.kubernetes.io/managed-by: {{ .Release.Service }}
+          {{- end }}
       spec:
         accessModes: ["ReadWriteOnce"]
         storageClassName: {{ .Values.postgresql.persistence.storageClass }}
