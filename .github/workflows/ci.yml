@@ -49,13 +49,13 @@ jobs:
         with:
           submodules: recursive
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: build/Dockerfile.control-plane
           push: false
           tags: opencode-workspaces-control-plane:test
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: build/Dockerfile.workspace
