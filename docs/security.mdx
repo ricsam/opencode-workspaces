@@ -1,0 +1,61 @@
+---
+title: "Security model"
+description: "Isolation boundaries, secret handling, network policy, and production hardening"
+---
+
+## Workspace isolation
+
+Workspace users run as UID 0 inside their containers so they can install development tools. The pods remain unprivileged:
+
+- all Linux capabilities are dropped;
+- privilege escalation is disabled;
+- the container is not privileged;
+- runtime-default seccomp is applied;
+- service-account token mounting is disabled;
+- no host path, container socket, or host namespace is mounted;
+- CPU and memory limits are configured;
+- each user receives a separate `ReadWriteOnce` PVC.
+
+## Runtime isolation
+
+Root in a container is not equivalent to a hardened hostile-code sandbox. For mutually untrusted users, configure a runtime class such as Kata or gVisor:
+
+```yaml
+workspace:
+  runtimeClassName: kata
+```
+
+Also use restricted admission controls, namespace quotas, egress controls, and dedicated clusters or node pools where appropriate.
+
+## Network isolation
+
+The chart's NetworkPolicies restrict workspace ingress to the control plane and block private IPv4 destinations from workspace internet egress. This depends on correct enforcement by the cluster CNI.
+
+Inspect the rendered policies and account for:
+
+- cluster DNS addresses and ports;
+- external PostgreSQL destinations;
+- proxies or service meshes;
+- IPv6, if enabled;
+- required private package registries or source-control endpoints.
+
+## Application boundary
+
+The control plane authenticates every root-path request before proxying it to the user's Service. It removes platform cookies, CSRF tokens, and browser authorization headers before injecting a per-workspace generated Basic Auth credential.
+
+OIDC uses discovery, state, nonce, S256 PKCE, and verified email. OIDC secrets are encrypted at rest with the application encryption key.
+
+## Secrets to protect
+
+- application `session-secret`;
+- application `encryption-key`;
+- bundled or external database credentials;
+- OIDC client secret;
+- image pull credentials, when used;
+- generated workspace Basic Auth Secrets.
+
+Limit access to Secrets and audit the control-plane service account, which requires namespaced permissions to reconcile workspace Pods, Services, PVCs, Secrets, ConfigMaps, and Deployments.
+
+## Reporting vulnerabilities
+
+Do not place credentials or sensitive exploit details in a public issue. Contact the repository owner privately through GitHub before public disclosure.

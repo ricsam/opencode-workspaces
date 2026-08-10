@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opencode-workspaces.fullname" . }}
+  labels:
+    {{- include "opencode-workspaces.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "opencode-workspaces.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "opencode-workspaces.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "opencode-workspaces.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ .Values.postgresql.image }}
+          command: ["sh", "-c", "until nc -z -w 2 {{ include "opencode-workspaces.fullname" . }}-postgresql 5432; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          {{- if not .Values.postgresql.enabled }}
+          # External databases are checked by the application instead.
+          command: ["true"]
+          {{- end }}
+      containers:
+        - name: control-plane
+          image: {{ include "opencode-workspaces.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: PUBLIC_URL
+              value: {{ include "opencode-workspaces.publicURL" . | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: WORKSPACE_OWNER_NAME
+              value: {{ include "opencode-workspaces.fullname" . }}-owner
+            - name: WORKSPACE_IMAGE
+              value: {{ include "opencode-workspaces.workspaceImage" . | quote }}
+            - name: WORKSPACE_IMAGE_PULL_POLICY
+              value: {{ .Values.workspaceImage.pullPolicy | quote }}
+            - name: WORKSPACE_IMAGE_PULL_SECRET
+              value: {{ .Values.workspace.imagePullSecret | quote }}
+            - name: WORKSPACE_STORAGE_CLASS
+              value: {{ .Values.workspace.storageClass | quote }}
+            - name: WORKSPACE_STORAGE_SIZE
+              value: {{ .Values.workspace.storageSize | quote }}
+            - name: WORKSPACE_IDLE_TIMEOUT
+              value: {{ .Values.workspace.idleTimeout | quote }}
+            - name: WORKSPACE_RUNTIME_CLASS
+              value: {{ .Values.workspace.runtimeClassName | quote }}
+            - name: WORKSPACE_CPU_REQUEST
+              value: {{ .Values.workspace.resources.requests.cpu | quote }}
+            - name: WORKSPACE_MEMORY_REQUEST
+              value: {{ .Values.workspace.resources.requests.memory | quote }}
+            - name: WORKSPACE_CPU_LIMIT
+              value: {{ .Values.workspace.resources.limits.cpu | quote }}
+            - name: WORKSPACE_MEMORY_LIMIT
+              value: {{ .Values.workspace.resources.limits.memory | quote }}
+            - name: TRUST_PROXY_HEADERS
+              value: {{ .Values.trustProxyHeaders | quote }}
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-workspaces.secretName" . }}
+                  key: session-secret
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opencode-workspaces.secretName" . }}
+                  key: encryption-key
+            {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "opencode-workspaces.secretName" .) .Values.postgresql.auth.existingSecret }}
+                  key: postgres-password
+            - name: DATABASE_URL
+              value: postgres://{{ .Values.postgresql.auth.username }}:$(POSTGRES_PASSWORD)@{{ include "opencode-workspaces.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}?sslmode=disable
+            {{- else }}
+            - name: DATABASE_URL
+              {{- if .Values.externalDatabase.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret }}
+                  key: {{ .Values.externalDatabase.secretKey }}
+              {{- else }}
+              value: {{ required "externalDatabase.url is required when postgresql.enabled=false" .Values.externalDatabase.url | quote }}
+              {{- end }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

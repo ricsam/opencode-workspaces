@@ -1,0 +1,40 @@
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "opencode-workspaces.serviceAccountName" . }}
+  labels:
+    {{- include "opencode-workspaces.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.serviceAccount.annotations | nindent 4 }}
+automountServiceAccountToken: true
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "opencode-workspaces.fullname" . }}
+  labels:
+    {{- include "opencode-workspaces.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "persistentvolumeclaims", "secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "opencode-workspaces.fullname" . }}
+  labels:
+    {{- include "opencode-workspaces.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "opencode-workspaces.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "opencode-workspaces.fullname" . }}

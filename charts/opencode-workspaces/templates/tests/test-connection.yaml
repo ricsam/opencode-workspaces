@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "opencode-workspaces.fullname" . }}-test
+  labels:
+    {{- include "opencode-workspaces.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    - name: curl
+      image: curlimages/curl:8.15.0
+      args: ["--fail", "http://{{ include "opencode-workspaces.fullname" . }}:{{ .Values.service.port }}/readyz"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault

@@ -1,0 +1,61 @@
+From 8c5c22ae2aceb5e03cb4de3003ee61039f5ea16a Mon Sep 17 00:00:00 2001
+From: OpenCode Workspaces <noreply@opencode-workspaces.local>
+Date: Fri, 7 Aug 2026 13:09:04 +0000
+Subject: [PATCH] fix(app): authenticate manifest and apply branding reactively
+
+---
+ packages/app/index.html                          |  2 +-
+ packages/app/src/context/platform-workspaces.tsx | 14 ++++++++++----
+ 2 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/packages/app/index.html b/packages/app/index.html
+index d715351..e7b9b46 100644
+--- a/packages/app/index.html
++++ b/packages/app/index.html
+@@ -11,7 +11,7 @@
+     <link rel="icon" type="image/svg+xml" href="/favicon-v3.svg" />
+     <link rel="shortcut icon" href="/favicon-v3.ico" />
+     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v3.png" />
+-    <link rel="manifest" href="/site.webmanifest" />
++    <link rel="manifest" href="/site.webmanifest" crossorigin="use-credentials" />
+     <meta name="theme-color" content="#fafafa" />
+     <meta name="mobile-web-app-capable" content="yes" />
+     <meta name="apple-mobile-web-app-capable" content="yes" />
+diff --git a/packages/app/src/context/platform-workspaces.tsx b/packages/app/src/context/platform-workspaces.tsx
+index 9e08fb8..7160520 100644
+--- a/packages/app/src/context/platform-workspaces.tsx
++++ b/packages/app/src/context/platform-workspaces.tsx
+@@ -1,4 +1,4 @@
+-import { createContext, createResource, type Accessor, type ParentProps, Show, useContext } from "solid-js"
++import { createContext, createEffect, createResource, type Accessor, type ParentProps, Show, useContext } from "solid-js"
+ 
+ export type PlatformWorkspaces = {
+   user: {
+@@ -29,15 +29,21 @@ export function PlatformWorkspacesProvider(props: ParentProps) {
+     const response = await fetch("/platform/api/v1/bootstrap", { credentials: "same-origin" }).catch(() => undefined)
+     if (!response?.ok) return
+     const value = (await response.json()) as PlatformWorkspaces
++    return value
++  })
++
++  createEffect(() => {
++    const value = platform()
++    if (!value) return
+     if (value.branding.name) document.title = value.branding.name
+     if (value.branding.accent) document.documentElement.style.setProperty("--ocw-accent", value.branding.accent)
+     if (value.branding.faviconUrl) {
+-      const favicon = document.querySelector<HTMLLinkElement>("link[rel~='icon']") ?? document.createElement("link")
++      for (const favicon of document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']")) favicon.remove()
++      const favicon = document.createElement("link")
+       favicon.rel = "icon"
+       favicon.href = value.branding.faviconUrl
+-      if (!favicon.parentNode) document.head.appendChild(favicon)
++      document.head.appendChild(favicon)
+     }
+-    return value
+   })
+ 
+   return <Context.Provider value={platform}>{props.children}</Context.Provider>
+-- 
+2.43.0
+

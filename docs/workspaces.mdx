@@ -1,0 +1,54 @@
+---
+title: "Workspace lifecycle"
+description: "How user workspaces start, stop, retain data, and receive configuration"
+---
+
+A database workspace row is the desired state. The controller reconciles one set of Kubernetes resources per user:
+
+- retained `ReadWriteOnce` PersistentVolumeClaim;
+- generated internal Basic Auth Secret;
+- ClusterIP Service;
+- `Recreate` Deployment with zero or one replica.
+
+## Start on demand
+
+When an authenticated request reaches a stopped workspace, the platform starts it and waits for readiness before proxying traffic. The user's browser continues to use the shared hostname.
+
+## Idle scale-to-zero
+
+`workspace.idleTimeout` controls inactivity shutdown:
+
+```yaml
+workspace:
+  idleTimeout: 30m
+```
+
+Activity writes are coalesced to avoid updating PostgreSQL for every proxied request. A stopped workspace retains its Service, Secret, and PVC while its Deployment scales to zero.
+
+## Persistent paths
+
+The workspace image mounts the user's PVC at `/workspace` and uses:
+
+| Path | Purpose |
+| --- | --- |
+| `/workspace/home` | Home directory and user configuration |
+| `/workspace/projects` | Project working directories |
+
+The rest of the container filesystem is ephemeral. Package installations outside `/workspace` disappear when Kubernetes recreates the pod.
+
+## Administrative actions
+
+Administrators can:
+
+- **Start** a stopped workspace;
+- **Stop** it without deleting data;
+- **Restart** it with a new pod;
+- **Purge** it by stopping the workspace and deleting its PVC and data record.
+
+<Warning>
+  Purge permanently deletes the user's retained workspace volume. Take a backup first.
+</Warning>
+
+## Image and resource updates
+
+Workspace pods use the image, pull secret, runtime class, storage defaults, and resources supplied by the control-plane deployment. Existing Deployments are updated during reconciliation. Existing PVC size and StorageClass are not automatically changed.

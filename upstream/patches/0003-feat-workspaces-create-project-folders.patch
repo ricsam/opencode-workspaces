@@ -1,0 +1,116 @@
+From 07b1ca18784c4a0a64c8079e185018038c9862d3 Mon Sep 17 00:00:00 2001
+From: OpenCode Workspaces <noreply@opencode-workspaces.local>
+Date: Fri, 7 Aug 2026 10:33:06 +0000
+Subject: [PATCH] feat(app): create project folders in hosted workspaces
+
+---
+ .../app/src/context/platform-workspaces.tsx   |  4 +++
+ .../pages/home/home-projects-controller.tsx   |  1 +
+ .../app/src/pages/home/home-projects-view.tsx | 26 ++++++++++++++++++-
+ packages/app/src/pages/home/home-projects.tsx |  1 +
+ 4 files changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/packages/app/src/context/platform-workspaces.tsx b/packages/app/src/context/platform-workspaces.tsx
+index f9d1d9a..9e08fb8 100644
+--- a/packages/app/src/context/platform-workspaces.tsx
++++ b/packages/app/src/context/platform-workspaces.tsx
+@@ -17,6 +17,10 @@ export type PlatformWorkspaces = {
+   adminUrl: string
+ }
+ 
++export function validPlatformProjectName(value: string) {
++  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value)
++}
++
+ const Context = createContext<Accessor<PlatformWorkspaces | undefined>>()
+ 
+ export function PlatformWorkspacesProvider(props: ParentProps) {
+diff --git a/packages/app/src/pages/home/home-projects-controller.tsx b/packages/app/src/pages/home/home-projects-controller.tsx
+index 18c58bd..5a7837b 100644
+--- a/packages/app/src/pages/home/home-projects-controller.tsx
++++ b/packages/app/src/pages/home/home-projects-controller.tsx
+@@ -68,6 +68,7 @@ export function createHomeProjectsController(home: HomeController) {
+       list: home.project.list,
+       recentlyClosed: home.project.recentlyClosed,
+       homedir: home.project.homedir,
++      serverContext: home.server.context,
+       select: home.project.select,
+       add: home.project.add,
+       openNewSession: home.project.openProjectNewSession,
+diff --git a/packages/app/src/pages/home/home-projects-view.tsx b/packages/app/src/pages/home/home-projects-view.tsx
+index d80d4a9..dac05d3 100644
+--- a/packages/app/src/pages/home/home-projects-view.tsx
++++ b/packages/app/src/pages/home/home-projects-view.tsx
+@@ -1,4 +1,4 @@
+-import { type Accessor, createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
++import { type Accessor, createMemo, createSignal, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+ import { createStore } from "solid-js/store"
+ import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
+ import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
+@@ -20,6 +20,8 @@ import { ServerRowMenuView, serverMenuLabels } from "@/components/server/server-
+ import { ServerHealthIndicator } from "@/components/server/server-row"
+ import { type ServerHealth } from "@/utils/server-health"
+ import { fileManagerApp } from "@/utils/file-manager"
++import type { HomeProjectsController } from "./home-projects-controller"
++import { usePlatformWorkspaces, validPlatformProjectName } from "@/context/platform-workspaces"
+ 
+ const HOME_PROJECT_NAV_LABEL = "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+ 
+@@ -34,6 +36,7 @@ export type HomeProjectsViewProps = {
+   recentlyClosed: Accessor<LocalProject[]>
+   selection: Accessor<HomeProjectSelection>
+   homedir: Accessor<string>
++  serverContext: HomeProjectsController["project"]["serverContext"]
+   serverHealth: (server: ServerConnection.Any) => ServerHealth | undefined
+   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
+   collapsed: (server: ServerConnection.Any) => boolean
+@@ -61,6 +64,8 @@ export type HomeProjectsViewProps = {
+ }
+ 
+ export function HomeProjectsView(props: HomeProjectsViewProps) {
++  const hosted = usePlatformWorkspaces()
++  const [projectName, setProjectName] = createSignal("")
+   const [contextMenu, setContextMenu] = createStore({ open: undefined as string | undefined })
+   const contextMenuProps = {
+     contextMenuOpen: (id: string) => contextMenu.open === id,
+@@ -97,6 +102,25 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
+           </TooltipV2>
+         </Show>
+       </div>
++      <Show when={hosted()}>
++        <form
++          class="flex gap-1 pr-3"
++          onSubmit={(event) => {
++            event.preventDefault()
++            const name = projectName().trim()
++            if (!validPlatformProjectName(name)) return
++            const server = props.servers()[0]
++            const directory = `/workspace/projects/${name}`
++            void props.serverContext(server).sdk.client.pty
++              .create({ command: "/bin/mkdir", args: ["-p", directory], cwd: "/workspace/projects", title: "Create project" })
++              .then(() => props.onAddProjects(server, [directory]))
++            setProjectName("")
++          }}
++        >
++          <input aria-label="Project name" placeholder="Project name" value={projectName()} onInput={(event) => setProjectName(event.currentTarget.value)} class="min-w-0 flex-1 rounded border border-v2-border-border-base bg-transparent px-2 text-sm" />
++          <button type="submit" disabled={!validPlatformProjectName(projectName().trim())} class="rounded px-2 text-sm text-v2-text-text-muted disabled:opacity-40">Create</button>
++        </form>
++      </Show>
+       <ScrollView data-slot="home-projects-scroll" class="min-h-0 min-w-0 shrink">
+         <Show
+           when={props.servers().length > 1}
+diff --git a/packages/app/src/pages/home/home-projects.tsx b/packages/app/src/pages/home/home-projects.tsx
+index ff2abf7..5ad28ce 100644
+--- a/packages/app/src/pages/home/home-projects.tsx
++++ b/packages/app/src/pages/home/home-projects.tsx
+@@ -11,6 +11,7 @@ export function HomeProjects(props: { projects: HomeProjectsController; scroll:
+       recentlyClosed={props.projects.project.recentlyClosed}
+       selection={props.projects.selection.value}
+       homedir={props.projects.project.homedir}
++      serverContext={props.projects.project.serverContext}
+       serverHealth={props.projects.server.health}
+       projectsForServer={props.projects.server.projects}
+       collapsed={props.projects.server.collapsed}
+-- 
+2.43.0
+

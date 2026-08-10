@@ -1,0 +1,47 @@
+---
+title: "Architecture"
+description: "Request routing, reconciliation, identity, and persistence architecture"
+---
+
+## Request flow
+
+The control plane owns `/platform/*`. Every other path is authenticated and forwarded to the caller's workspace Service. This allows the upstream OpenCode application to continue using root-relative browser and API routes.
+
+```text
+Browser
+  |
+  v
+Ingress -> Control plane -> Per-user ClusterIP Service -> OpenCode pod
+                |
+                +-> PostgreSQL
+                +-> Kubernetes API
+```
+
+The Go reverse proxy preserves streaming responses and protocol upgrades. Before forwarding, the gateway removes platform cookies and browser authorization, then adds the workspace's internal Basic Auth header.
+
+## Reconciliation
+
+A database workspace row is desired state. The controller continuously reconciles:
+
+- retained `ReadWriteOnce` PVC;
+- internal password Secret;
+- ClusterIP Service;
+- `Recreate` Deployment with zero or one replica.
+
+Deployments, Services, and Secrets reference a stable release ConfigMap owner. User PVCs have identifying labels but no owner reference, preventing Helm uninstall or anchor garbage collection from erasing workspace data.
+
+## Persistence
+
+PostgreSQL stores users, sessions, settings, workspace desired state, and audit events. Each user's files are stored on a dedicated PVC mounted at `/workspace`.
+
+The workspace image uses `/workspace/home` for the home directory and `/workspace/projects` for projects. Container-layer changes are ephemeral.
+
+## Identity
+
+Local passwords use Argon2id. Session and CSRF values are random and only hashes are stored. Secure, HttpOnly, and SameSite cookie attributes are applied where appropriate.
+
+OIDC uses discovery, authorization code flow, state, nonce, and S256 PKCE. Existing identities key on issuer and subject. Just-in-time provisioning, allowed domains, and administrator groups are runtime settings.
+
+## OpenCode customization
+
+The official `anomalyco/opencode` source is pinned as a Git submodule. A small replayable patch queue adds platform bootstrap context, branding integration, project-directory defaults, and the administrator link. The workspace image applies those patches before building the OpenCode binary.

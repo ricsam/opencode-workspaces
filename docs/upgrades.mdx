@@ -1,0 +1,62 @@
+---
+title: "Upgrades"
+description: "Safely upgrade chart releases, images, and database schema"
+---
+
+The chart version and application image tags are released together. By default an empty image tag resolves to the chart's `appVersion`.
+
+## Upgrade procedure
+
+1. Back up PostgreSQL, workspace PVCs, and the application Secret.
+2. Refresh repository metadata and inspect available versions.
+3. Compare values between your installed and target chart versions.
+4. Render the exact upgrade and run a server-side dry-run.
+5. Upgrade with `--wait`.
+6. Verify rollouts, run chart tests, and create a disposable workspace.
+
+```bash
+helm repo update
+helm search repo opencode-workspaces/opencode-workspaces --versions
+
+helm get values opencode-workspaces -n opencode-workspaces -o yaml \
+  > values.current.yaml
+
+helm template opencode-workspaces opencode-workspaces/opencode-workspaces \
+  --version <target-version> \
+  --namespace opencode-workspaces \
+  -f values.current.yaml > /tmp/opencode-workspaces.yaml
+
+kubectl apply --dry-run=server -f /tmp/opencode-workspaces.yaml
+
+helm upgrade opencode-workspaces opencode-workspaces/opencode-workspaces \
+  --version <target-version> \
+  --namespace opencode-workspaces \
+  -f values.current.yaml \
+  --wait
+```
+
+Migrations use a PostgreSQL advisory lock and run transactionally when the control plane starts.
+
+## Rollback
+
+If an application upgrade fails and the database migration remains backward-compatible:
+
+```bash
+helm history opencode-workspaces -n opencode-workspaces
+helm rollback opencode-workspaces <revision> -n opencode-workspaces --wait
+```
+
+A Helm rollback does not restore PostgreSQL or PVC contents. For incompatible data migrations, follow the release notes and restore from backup when required.
+
+## Image overrides
+
+For controlled testing, override both tags together:
+
+```yaml
+image:
+  tag: <version-or-digest-tag>
+workspaceImage:
+  tag: <version-or-digest-tag>
+```
+
+Avoid mutable tags in production.

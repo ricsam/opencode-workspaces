@@ -1,0 +1,98 @@
+---
+title: "Installation"
+description: "Production installation patterns for storage, ingress, databases, and private images"
+---
+
+## Published chart
+
+The chart is served as a conventional Helm repository from GitHub Pages:
+
+```bash
+helm repo add opencode-workspaces https://ricsam.github.io/opencode-workspaces
+helm repo update
+helm show chart opencode-workspaces/opencode-workspaces
+helm show values opencode-workspaces/opencode-workspaces
+```
+
+Every chart release is also attached to a GitHub release. The chart repository `index.yaml` is generated automatically from `charts/opencode-workspaces` when a new chart version lands on `main`.
+
+## Storage
+
+The chart creates storage for two distinct purposes:
+
+1. Bundled PostgreSQL uses a StatefulSet volume claim.
+2. The controller creates one retained `ReadWriteOnce` PVC per user.
+
+Set both StorageClasses explicitly:
+
+```yaml
+postgresql:
+  persistence:
+    storageClass: rook-ceph-block
+    size: 8Gi
+
+workspace:
+  storageClass: rook-ceph-block
+  storageSize: 20Gi
+```
+
+Workspace PVCs deliberately have no owner reference. Removing the Helm release does not delete user data.
+
+## Ingress
+
+```yaml
+publicURL: https://code.example.com
+
+ingress:
+  enabled: true
+  className: traefik
+  host: code.example.com
+  path: /
+  pathType: Prefix
+```
+
+`publicURL` must be the externally visible URL. It controls secure cookies and the OIDC redirect URL. Terminate TLS at your ingress or an upstream proxy.
+
+## External PostgreSQL
+
+Disable the bundled database and refer to a Secret containing the complete connection URL:
+
+```yaml
+postgresql:
+  enabled: false
+
+externalDatabase:
+  existingSecret: opencode-db
+  secretKey: database-url
+```
+
+```bash
+kubectl -n opencode-workspaces create secret generic opencode-db \
+  --from-literal=database-url='postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require'
+```
+
+Back up the database independently of the Helm release.
+
+## Private image mirrors
+
+The published project images are intended to be publicly pullable. If you mirror them into a private registry, create a registry Secret and configure both workload types:
+
+```yaml
+imagePullSecrets:
+  - name: registry-pull
+
+workspace:
+  imagePullSecret: registry-pull
+```
+
+`imagePullSecrets` applies to the control plane. `workspace.imagePullSecret` is passed to dynamically created workspace pods.
+
+## Existing application Secret
+
+By default Helm creates and preserves generated session, encryption, and PostgreSQL secrets across upgrades. To manage them yourself:
+
+```yaml
+existingSecret: opencode-workspaces-secrets
+```
+
+The Secret must contain `session-secret` and `encryption-key`. Include `postgres-password` when bundled PostgreSQL is enabled without its own `postgresql.auth.existingSecret`.

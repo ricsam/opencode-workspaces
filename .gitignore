@@ -1,0 +1,31 @@
+# Go
+bin/
+coverage.out
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Helm
+charts/opencode-workspaces/charts/
+*.tgz
+
+# Mintlify
+.mintlify/
+docs/.mintlify/
+
+# OpenCode build/cache artifacts
+upstream/opencode/node_modules/
+upstream/opencode/**/node_modules/
+upstream/opencode/packages/app/dist/
+upstream/opencode/packages/opencode/dist/
+upstream/opencode/.turbo/
+
+# Patch worktrees
+.upstream-worktrees/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "replicaCount": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "publicURL": { "type": "string" },
+    "image": { "$ref": "#/$defs/image" },
+    "workspaceImage": { "$ref": "#/$defs/image" },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": { "type": "string" },
+        "tls": { "type": "array" }
+      },
+      "required": ["enabled", "host"]
+    },
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "storageClass": { "type": "string", "minLength": 1 },
+        "storageSize": { "type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$" },
+        "idleTimeout": { "type": "string" }
+      },
+      "required": ["storageClass", "storageSize"]
+    },
+    "postgresql": { "type": "object" },
+    "externalDatabase": { "type": "object" }
+  },
+  "$defs": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["repository", "pullPolicy"]
+    }
+  }
+}

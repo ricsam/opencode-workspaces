@@ -1,0 +1,133 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "OpenCode Workspaces",
+  "description": "Deploy isolated, persistent OpenCode workspaces for multiple users on Kubernetes.",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#8B5CF6",
+    "dark": "#6D28D9"
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "background": {
+    "decoration": "grid"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": [
+          "index",
+          "quickstart",
+          "installation"
+        ]
+      },
+      {
+        "group": "Configure",
+        "pages": [
+          "configuration",
+          "authentication",
+          "workspaces"
+        ]
+      },
+      {
+        "group": "Operate",
+        "pages": [
+          "operations",
+          "upgrades"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "helm-reference",
+          "architecture",
+          "security"
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/ricsam/opencode-workspaces",
+          "icon": "github"
+        },
+        {
+          "anchor": "Helm repository",
+          "href": "https://ricsam.github.io/opencode-workspaces/index.yaml",
+          "icon": "package"
+        }
+      ]
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "type": "github",
+        "href": "https://github.com/ricsam/opencode-workspaces"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Install",
+      "href": "/quickstart"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/ricsam/opencode-workspaces"
+    },
+    "links": [
+      {
+        "header": "Project",
+        "items": [
+          {
+            "label": "Source",
+            "href": "https://github.com/ricsam/opencode-workspaces"
+          },
+          {
+            "label": "OpenCode",
+            "href": "https://github.com/anomalyco/opencode"
+          }
+        ]
+      },
+      {
+        "header": "Packages",
+        "items": [
+          {
+            "label": "Helm index",
+            "href": "https://ricsam.github.io/opencode-workspaces/index.yaml"
+          },
+          {
+            "label": "GHCR images",
+            "href": "https://github.com/ricsam?tab=packages&repo_name=opencode-workspaces"
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "timestamp": true
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Page not found",
+      "description": "Return to the [documentation home](/)."
+    }
+  }
+}

@@ -1,0 +1,46 @@
+---
+title: "OpenCode Workspaces"
+description: "Multi-user, isolated, and persistent OpenCode workspaces on Kubernetes"
+---
+
+Run one OpenCode web workspace per user behind a shared, authenticated control plane. Each user gets an isolated Kubernetes workload and retained storage, while administrators manage identity, lifecycle, and branding from one place.
+
+<CardGroup cols={2}>
+  <Card title="Install with Helm" icon="package" href="/quickstart">
+    Add the chart repository and deploy a production-shaped installation.
+  </Card>
+  <Card title="Understand the architecture" icon="boxes" href="/architecture">
+    See how requests, workspaces, storage, and Kubernetes resources fit together.
+  </Card>
+  <Card title="Configure identity" icon="key-round" href="/authentication">
+    Bootstrap the first administrator, manage local users, and connect an OIDC provider.
+  </Card>
+  <Card title="Review the security model" icon="shield-check" href="/security">
+    Understand isolation guarantees, operational requirements, and threat-model limits.
+  </Card>
+</CardGroup>
+
+## What it provides
+
+- Atomic first-user administrator bootstrap.
+- Administrator-managed local accounts with Argon2id passwords.
+- Runtime-configurable OpenID Connect with discovery, PKCE, verified email, and domain/group policies.
+- One root-capable but unprivileged pod per user, with no service-account token or host access.
+- On-demand startup, administrator controls, idle scale-to-zero, and retained per-user storage.
+- A single authenticated hostname that proxies OpenCode HTTP, streaming, and WebSocket traffic.
+- Admin screens for users, workspace status, OIDC, branding, and audit events.
+
+<Note>
+  OpenCode Workspaces is a community project. It is not built by or affiliated with the OpenCode team.
+</Note>
+
+## Published artifacts
+
+| Artifact | Location |
+| --- | --- |
+| Helm chart repository | `https://ricsam.github.io/opencode-workspaces` |
+| Control-plane image | `ghcr.io/ricsam/opencode-workspaces-control-plane` |
+| Workspace image | `ghcr.io/ricsam/opencode-workspaces-workspace` |
+| Source repository | [github.com/ricsam/opencode-workspaces](https://github.com/ricsam/opencode-workspaces) |
+
+Continue with the [quickstart](/quickstart) for a first installation.

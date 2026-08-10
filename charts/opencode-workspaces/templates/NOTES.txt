@@ -1,0 +1,11 @@
+OpenCode Workspaces is installed.
+
+{{- if .Values.ingress.enabled }}
+Open {{ include "opencode-workspaces.publicURL" . }}/platform/setup to create the first administrator.
+{{- else }}
+Run:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "opencode-workspaces.fullname" . }} 8080:{{ .Values.service.port }}
+Then open http://localhost:8080/platform/setup.
+{{- end }}
+
+Workspace PVCs are retained independently of the Helm release. Use the administrator's explicit purge action before deleting a user's retained data.

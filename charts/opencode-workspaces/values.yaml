@@ -1,0 +1,101 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/ricsam/opencode-workspaces-control-plane
+  tag: ""
+  pullPolicy: IfNotPresent
+workspaceImage:
+  repository: ghcr.io/ricsam/opencode-workspaces-workspace
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+publicURL: ""
+trustProxyHeaders: true
+existingSecret: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: traefik
+  annotations: {}
+  host: opencode.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+
+postgresql:
+  enabled: true
+  image: postgres:17.6-alpine
+  auth:
+    database: opencode_workspaces
+    username: opencode
+    existingSecret: ""
+  persistence:
+    storageClass: rook-ceph-block
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+externalDatabase:
+  url: ""
+  existingSecret: ""
+  secretKey: database-url
+
+workspace:
+  storageClass: rook-ceph-block
+  storageSize: 10Gi
+  idleTimeout: 30m
+  runtimeClassName: ""
+  imagePullSecret: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "4"
+      memory: 6Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+networkPolicy:
+  enabled: true
+  workspaceInternetEgress: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

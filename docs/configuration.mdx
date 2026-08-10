@@ -1,0 +1,94 @@
+---
+title: "Configuration"
+description: "Configure images, ingress, storage, resources, security, and networking"
+---
+
+Use a values file rather than a long list of `--set` arguments:
+
+```bash
+helm show values opencode-workspaces/opencode-workspaces > values.production.yaml
+helm upgrade --install opencode-workspaces opencode-workspaces/opencode-workspaces \
+  --namespace opencode-workspaces \
+  -f values.production.yaml
+```
+
+## Images
+
+The default repositories are:
+
+```yaml
+image:
+  repository: ghcr.io/ricsam/opencode-workspaces-control-plane
+  tag: ""
+  pullPolicy: IfNotPresent
+
+workspaceImage:
+  repository: ghcr.io/ricsam/opencode-workspaces-workspace
+  tag: ""
+  pullPolicy: IfNotPresent
+```
+
+An empty tag resolves to `appVersion` from the chart. Released charts therefore pull immutable version tags such as `0.1.0`.
+
+## Public URL and proxy headers
+
+```yaml
+publicURL: https://code.example.com
+trustProxyHeaders: true
+```
+
+Enable trusted proxy headers only when the application is behind infrastructure that removes untrusted incoming forwarding headers. The public URL must match what browsers use.
+
+## Workspace defaults
+
+```yaml
+workspace:
+  storageClass: rook-ceph-block
+  storageSize: 10Gi
+  idleTimeout: 30m
+  runtimeClassName: kata
+  imagePullSecret: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "4"
+      memory: 6Gi
+```
+
+- `idleTimeout: 0s` disables idle scale-to-zero.
+- Resource changes apply when the controller next reconciles a workspace.
+- A runtime class is strongly recommended when users are not mutually trusted.
+
+## Control-plane resources
+
+```yaml
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+```
+
+Only one control-plane replica is currently supported because workspace lifecycle reconciliation and the built-in setup flow assume a single active instance.
+
+## NetworkPolicy
+
+```yaml
+networkPolicy:
+  enabled: true
+  workspaceInternetEgress: true
+```
+
+When enabled, policies:
+
+- allow ingress to the control plane;
+- allow control-plane access to PostgreSQL and workspace HTTP ports;
+- allow DNS resolution;
+- deny workspace access to RFC1918 destinations;
+- optionally allow workspace internet egress.
+
+Your CNI must enforce Kubernetes NetworkPolicy. Review the rendered rules against your cluster DNS, database, ingress, and egress architecture before deployment.

@@ -1,0 +1,56 @@
+From 8f3e78b191416e3e28b3d866d6b0342310e31e55 Mon Sep 17 00:00:00 2001
+From: OpenCode Workspaces <noreply@opencode-workspaces.local>
+Date: Thu, 6 Aug 2026 16:30:00 +0000
+Subject: [PATCH] fix(app): keep platform bootstrap context reactive
+
+---
+ .../app/src/context/platform-workspaces.tsx    | 15 +++++++--------
+ 1 file changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/packages/app/src/context/platform-workspaces.tsx b/packages/app/src/context/platform-workspaces.tsx
+index 73938de..c53631a 100644
+--- a/packages/app/src/context/platform-workspaces.tsx
++++ b/packages/app/src/context/platform-workspaces.tsx
+@@ -1,4 +1,4 @@
+-import { createContext, createResource, type ParentProps, Show, useContext } from "solid-js"
++import { createContext, createResource, type Accessor, type ParentProps, Show, useContext } from "solid-js"
+ 
+ export type PlatformWorkspaces = {
+   user: {
+@@ -18,7 +18,7 @@ export type PlatformWorkspaces = {
+   adminUrl: string
+ }
+ 
+-const Context = createContext<PlatformWorkspaces | undefined>()
++const Context = createContext<Accessor<PlatformWorkspaces | undefined>>()
+ 
+ export function PlatformWorkspacesProvider(props: ParentProps) {
+   const [platform] = createResource(async () => {
+@@ -37,19 +37,18 @@ export function PlatformWorkspacesProvider(props: ParentProps) {
+     return value
+   })
+ 
+-  const value = () => platform()
+-  return <Context.Provider value={value()}>{props.children}</Context.Provider>
++  return <Context.Provider value={platform}>{props.children}</Context.Provider>
+ }
+ 
+ export function usePlatformWorkspaces() {
+-  return useContext(Context)
++  return useContext(Context) ?? (() => undefined)
+ }
+ 
+ export function PlatformAdminLink() {
+   const platform = usePlatformWorkspaces()
+   return (
+-    <Show when={platform?.user.isAdmin}>
++    <Show when={platform()?.user.isAdmin}>
+       <a
+-        href={platform?.adminUrl ?? "/platform/admin"}
++        href={platform()?.adminUrl ?? "/platform/admin"}
+         class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-text-weak hover:text-text-strong hover:bg-surface-raised-base-hover"
+         title="OpenCode Workspaces administration"
+       >
+-- 
+2.43.0
+

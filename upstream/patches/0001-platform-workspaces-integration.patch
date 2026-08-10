@@ -1,0 +1,156 @@
+From ef9bb23ed030b8565d86242a620d2e5fc986e8ee Mon Sep 17 00:00:00 2001
+From: OpenCode Workspaces <noreply@opencode-workspaces.local>
+Date: Thu, 6 Aug 2026 13:37:58 +0000
+Subject: [PATCH] feat(app): add workspaces platform integration
+
+---
+ packages/app/src/components/titlebar.tsx      |  9 ++-
+ .../app/src/context/platform-workspaces.tsx   | 60 +++++++++++++++++++
+ packages/app/src/entry.tsx                    | 23 +++----
+ 3 files changed, 80 insertions(+), 12 deletions(-)
+ create mode 100644 packages/app/src/context/platform-workspaces.tsx
+
+diff --git a/packages/app/src/components/titlebar.tsx b/packages/app/src/components/titlebar.tsx
+index 64df406..3902555 100644
+--- a/packages/app/src/components/titlebar.tsx
++++ b/packages/app/src/components/titlebar.tsx
+@@ -39,6 +39,7 @@ import type { PromptSession } from "@/context/prompt"
+ import "./titlebar.css"
+ import { newTabTooltipKeybind } from "./command-tooltip-keybind"
+ import { normalizeSessionInfo } from "@/utils/session"
++import { PlatformAdminLink } from "@/context/platform-workspaces"
+ 
+ const legacyTitlebarHeight = 40
+ const v2TitlebarHeight = 36
+@@ -580,7 +581,9 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
+               }}
+               data-tauri-drag-region
+             >
+-              <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
++              <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end">
++                <PlatformAdminLink />
++              </div>
+               <Show when={windows()}>
+                 <div class="shrink-0" style={{ width: windowsControlsWidth() }} />
+               </Show>
+@@ -611,7 +614,9 @@ function TitlebarV2Right(props: { state: TitlebarV2RightState }) {
+       <Show when={props.state.update.visible}>
+         <TitlebarUpdateIconButton state={props.state.update} />
+       </Show>
+-      <div id="opencode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
++      <div id="opencode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0">
++        <PlatformAdminLink />
++      </div>
+     </div>
+   )
+ }
+diff --git a/packages/app/src/context/platform-workspaces.tsx b/packages/app/src/context/platform-workspaces.tsx
+new file mode 100644
+index 0000000..73938de
+--- /dev/null
++++ b/packages/app/src/context/platform-workspaces.tsx
+@@ -0,0 +1,60 @@
++import { createContext, createResource, type ParentProps, Show, useContext } from "solid-js"
++
++export type PlatformWorkspaces = {
++  user: {
++    id: string
++    username: string
++    displayName: string
++    role: "admin" | "user"
++    isAdmin: boolean
++  }
++  branding: {
++    name: string
++    logoUrl?: string
++    faviconUrl?: string
++    accent?: string
++  }
++  adminUrl: string
++}
++
++const Context = createContext<PlatformWorkspaces | undefined>()
++
++export function PlatformWorkspacesProvider(props: ParentProps) {
++  const [platform] = createResource(async () => {
++    if (typeof window === "undefined") return
++    const response = await fetch("/platform/api/v1/bootstrap", { credentials: "same-origin" }).catch(() => undefined)
++    if (!response?.ok) return
++    const value = (await response.json()) as PlatformWorkspaces
++    if (value.branding.name) document.title = value.branding.name
++    if (value.branding.accent) document.documentElement.style.setProperty("--ocw-accent", value.branding.accent)
++    if (value.branding.faviconUrl) {
++      const favicon = document.querySelector<HTMLLinkElement>("link[rel~='icon']") ?? document.createElement("link")
++      favicon.rel = "icon"
++      favicon.href = value.branding.faviconUrl
++      if (!favicon.parentNode) document.head.appendChild(favicon)
++    }
++    return value
++  })
++
++  const value = () => platform()
++  return <Context.Provider value={value()}>{props.children}</Context.Provider>
++}
++
++export function usePlatformWorkspaces() {
++  return useContext(Context)
++}
++
++export function PlatformAdminLink() {
++  const platform = usePlatformWorkspaces()
++  return (
++    <Show when={platform?.user.isAdmin}>
++      <a
++        href={platform?.adminUrl ?? "/platform/admin"}
++        class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-text-weak hover:text-text-strong hover:bg-surface-raised-base-hover"
++        title="OpenCode Workspaces administration"
++      >
++        Admin
++      </a>
++    </Show>
++  )
++}
+diff --git a/packages/app/src/entry.tsx b/packages/app/src/entry.tsx
+index 9b71d65..fce2a56 100644
+--- a/packages/app/src/entry.tsx
++++ b/packages/app/src/entry.tsx
+@@ -10,6 +10,7 @@ import { dict as zh } from "@/i18n/zh"
+ import { authFromToken } from "@/utils/server"
+ import pkg from "../package.json"
+ import { ServerConnection } from "./context/server"
++import { PlatformWorkspacesProvider } from "./context/platform-workspaces"
+ 
+ const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
+ 
+@@ -161,16 +162,18 @@ if (root instanceof HTMLElement) {
+   }
+   render(
+     () => (
+-      <PlatformProvider value={platform}>
+-        <AppBaseProviders>
+-          <AppInterface
+-            defaultServer={ServerConnection.Key.make(getDefaultUrl())}
+-            canonicalLocalServer={ServerConnection.key(server)}
+-            servers={[server]}
+-            disableHealthCheck
+-          />
+-        </AppBaseProviders>
+-      </PlatformProvider>
++      <PlatformWorkspacesProvider>
++        <PlatformProvider value={platform}>
++          <AppBaseProviders>
++            <AppInterface
++              defaultServer={ServerConnection.Key.make(getDefaultUrl())}
++              canonicalLocalServer={ServerConnection.key(server)}
++              servers={[server]}
++              disableHealthCheck
++            />
++          </AppBaseProviders>
++        </PlatformProvider>
++      </PlatformWorkspacesProvider>
+     ),
+     root,
+   )
+-- 
+2.43.0
+

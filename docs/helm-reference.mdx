@@ -1,0 +1,85 @@
+---
+title: "Helm values reference"
+description: "Reference for the OpenCode Workspaces chart values"
+---
+
+The canonical defaults live in `charts/opencode-workspaces/values.yaml`. Inspect the values for your selected chart version:
+
+```bash
+helm show values opencode-workspaces/opencode-workspaces --version <version>
+```
+
+## Core
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `replicaCount` | `1` | Control-plane replica count. Only one is supported. |
+| `publicURL` | `""` | Browser-facing absolute URL. Derived from ingress when empty. |
+| `trustProxyHeaders` | `true` | Trust forwarded host and protocol headers. |
+| `existingSecret` | `""` | Existing Secret for session and encryption keys. |
+| `nameOverride` | `""` | Override chart name in generated resource names. |
+| `fullnameOverride` | `""` | Override complete generated resource name. |
+
+## Images
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `image.repository` | `ghcr.io/ricsam/opencode-workspaces-control-plane` | Control-plane image repository. |
+| `image.tag` | `""` | Control-plane tag; empty uses chart `appVersion`. |
+| `image.pullPolicy` | `IfNotPresent` | Control-plane pull policy. |
+| `workspaceImage.repository` | `ghcr.io/ricsam/opencode-workspaces-workspace` | Workspace image repository. |
+| `workspaceImage.tag` | `""` | Workspace tag; empty uses chart `appVersion`. |
+| `workspaceImage.pullPolicy` | `IfNotPresent` | Workspace pull policy. |
+| `imagePullSecrets` | `[]` | Pull Secrets for the control plane. |
+
+## Service and ingress
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `service.type` | `ClusterIP` | Control-plane Service type. |
+| `service.port` | `80` | Control-plane Service port. |
+| `ingress.enabled` | `false` | Create an Ingress. |
+| `ingress.className` | `traefik` | Ingress class name. |
+| `ingress.annotations` | `{}` | Ingress annotations. |
+| `ingress.host` | `opencode.example.com` | Ingress hostname. |
+| `ingress.path` | `/` | Ingress path. |
+| `ingress.pathType` | `Prefix` | Kubernetes ingress path type. |
+| `ingress.tls` | `[]` | Ingress TLS entries. |
+
+## PostgreSQL
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `postgresql.enabled` | `true` | Deploy bundled PostgreSQL. |
+| `postgresql.image` | `postgres:17.6-alpine` | PostgreSQL image. |
+| `postgresql.auth.database` | `opencode_workspaces` | Database name. |
+| `postgresql.auth.username` | `opencode` | Database user. |
+| `postgresql.auth.existingSecret` | `""` | Secret containing `postgres-password`. |
+| `postgresql.persistence.storageClass` | `rook-ceph-block` | Database PVC StorageClass. |
+| `postgresql.persistence.size` | `8Gi` | Database PVC size. |
+| `externalDatabase.url` | `""` | Inline URL when bundled PostgreSQL is disabled. Prefer a Secret. |
+| `externalDatabase.existingSecret` | `""` | Secret containing an external database URL. |
+| `externalDatabase.secretKey` | `database-url` | Key in the external database Secret. |
+
+## Workspaces
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `workspace.storageClass` | `rook-ceph-block` | StorageClass for user PVCs. |
+| `workspace.storageSize` | `10Gi` | Initial size of each user PVC. |
+| `workspace.idleTimeout` | `30m` | Inactivity before scale-to-zero; `0s` disables. |
+| `workspace.runtimeClassName` | `""` | RuntimeClass for dynamically created workspace pods. |
+| `workspace.imagePullSecret` | `""` | Pull Secret for workspace pods. |
+| `workspace.resources` | See defaults | CPU and memory requests and limits per workspace. |
+
+## Security and scheduling
+
+| Value | Default | Description |
+| --- | --- | --- |
+| `podSecurityContext` | Non-root UID/GID `65532` | Control-plane pod security context. |
+| `securityContext` | Read-only, no privilege escalation, all capabilities dropped | Control-plane container security context. |
+| `networkPolicy.enabled` | `true` | Create control-plane, workspace, and database policies. |
+| `networkPolicy.workspaceInternetEgress` | `true` | Allow non-private IPv4 workspace egress. |
+| `nodeSelector` | `{}` | Control-plane node selector. |
+| `tolerations` | `[]` | Control-plane tolerations. |
+| `affinity` | `{}` | Control-plane affinity rules. |

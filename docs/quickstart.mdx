@@ -1,0 +1,95 @@
+---
+title: "Quickstart"
+description: "Install OpenCode Workspaces from the published Helm repository"
+---
+
+## Prerequisites
+
+You need:
+
+- Kubernetes 1.29 or newer;
+- Helm 3;
+- a dynamic `ReadWriteOnce` StorageClass;
+- an ingress controller and a DNS name for the installation;
+- a runtime isolation class such as Kata or gVisor for mutually untrusted users.
+
+## 1. Add the chart repository
+
+```bash
+helm repo add opencode-workspaces https://ricsam.github.io/opencode-workspaces
+helm repo update
+helm search repo opencode-workspaces/opencode-workspaces --versions
+```
+
+The chart defaults point at the two public GHCR images published by this repository. The chart version and image tags move together, so you do not need to override them for a normal release.
+
+## 2. Create production values
+
+```yaml values.production.yaml
+publicURL: https://code.example.com
+
+ingress:
+  enabled: true
+  className: traefik
+  host: code.example.com
+
+postgresql:
+  persistence:
+    storageClass: rook-ceph-block
+
+workspace:
+  storageClass: rook-ceph-block
+  runtimeClassName: kata
+  storageSize: 20Gi
+```
+
+Replace the ingress class, hostname, StorageClass, and runtime class for your cluster.
+
+<Warning>
+  Root inside a workspace container is not a complete hostile-code sandbox. Use a strong runtime isolation class, admission policy, quotas, network policy enforcement, and preferably dedicated infrastructure for mutually untrusted tenants.
+</Warning>
+
+## 3. Render and validate
+
+```bash
+helm template opencode-workspaces opencode-workspaces/opencode-workspaces \
+  --namespace opencode-workspaces \
+  -f values.production.yaml > /tmp/opencode-workspaces.yaml
+
+kubectl apply --dry-run=server -f /tmp/opencode-workspaces.yaml
+```
+
+Fix every admission error before installing the release.
+
+## 4. Install
+
+```bash
+helm upgrade --install opencode-workspaces opencode-workspaces/opencode-workspaces \
+  --namespace opencode-workspaces \
+  --create-namespace \
+  -f values.production.yaml \
+  --wait
+```
+
+Verify the control plane and bundled database, then run the chart test:
+
+```bash
+kubectl -n opencode-workspaces get pods
+helm test opencode-workspaces -n opencode-workspaces
+```
+
+## 5. Bootstrap the administrator
+
+Open:
+
+```text
+https://code.example.com/platform/setup
+```
+
+The first successful setup transaction creates the administrator. Once an account exists, later registration attempts through that endpoint are rejected.
+
+## Next steps
+
+- Review all [configuration options](/configuration).
+- Connect an [OIDC provider](/authentication).
+- Plan [backups and operations](/operations).

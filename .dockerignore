@@ -1,0 +1,12 @@
+.git
+.gitignore
+.github
+.upstream-worktrees
+upstream/opencode/.git
+upstream/opencode/node_modules
+upstream/opencode/packages/*/node_modules
+upstream/opencode/packages/app/dist
+upstream/opencode/packages/opencode/dist
+charts
+coverage.out
+*.md

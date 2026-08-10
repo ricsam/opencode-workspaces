@@ -1,0 +1,69 @@
+---
+title: "Operations"
+description: "Health checks, verification, backup, recovery, and troubleshooting"
+---
+
+## Health and readiness
+
+The control plane exposes:
+
+| Endpoint | Meaning |
+| --- | --- |
+| `/healthz` | Process is running |
+| `/readyz` | PostgreSQL is reachable |
+
+Kubernetes probes use these endpoints automatically.
+
+## Post-install verification
+
+```bash
+kubectl -n opencode-workspaces get deploy,statefulset,pods,svc,ingress
+kubectl -n opencode-workspaces rollout status deploy/opencode-workspaces-opencode-workspaces
+kubectl -n opencode-workspaces rollout status statefulset/opencode-workspaces-opencode-workspaces-postgresql
+helm test opencode-workspaces -n opencode-workspaces
+```
+
+Resource names change when you use `fullnameOverride` or a different release name.
+
+## Logs and events
+
+```bash
+kubectl -n opencode-workspaces logs deploy/opencode-workspaces-opencode-workspaces
+kubectl -n opencode-workspaces get events --sort-by=.lastTimestamp
+```
+
+For a workspace pod:
+
+```bash
+kubectl -n opencode-workspaces get pods \
+  -l app.kubernetes.io/managed-by=opencode-workspaces
+kubectl -n opencode-workspaces logs <workspace-pod>
+```
+
+## Backup
+
+Back up all of the following:
+
+1. PostgreSQL.
+2. Every user workspace PVC.
+3. The application Secret containing session and encryption keys.
+4. Identity-provider configuration outside the cluster.
+
+PostgreSQL and the workspace volumes must represent a consistent recovery point for strict recovery objectives.
+
+## Recovery
+
+1. Restore PostgreSQL.
+2. Restore workspace PVCs with their original claim names.
+3. Restore the application Secret before starting the control plane.
+4. Install the same chart and image version.
+5. Verify a local login and OIDC login.
+6. Start a disposable workspace and confirm persistence.
+
+## Uninstall
+
+```bash
+helm uninstall opencode-workspaces -n opencode-workspaces
+```
+
+Dynamic Deployments, Services, and internal Secrets are garbage-collected through a release-owned anchor. User PVCs are intentionally retained. Delete them manually only after backup and explicit authorization.

@@ -1,0 +1,25 @@
+apiVersion: v2
+name: opencode-workspaces
+description: Multi-user, isolated and persistent OpenCode workspaces for Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/ricsam/opencode-workspaces
+icon: https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/ui/src/assets/logo-ornate.svg
+sources:
+  - https://github.com/ricsam/opencode-workspaces
+  - https://github.com/anomalyco/opencode
+keywords:
+  - opencode
+  - development
+  - workspaces
+maintainers:
+  - name: ricsam
+    url: https://github.com/ricsam
+annotations:
+  artifacthub.io/license: MIT
+  artifacthub.io/images: |
+    - name: control-plane
+      image: ghcr.io/ricsam/opencode-workspaces-control-plane:0.1.0
+    - name: workspace
+      image: ghcr.io/ricsam/opencode-workspaces-workspace:0.1.0

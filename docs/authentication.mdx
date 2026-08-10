@@ -1,0 +1,54 @@
+---
+title: "Authentication"
+description: "Bootstrap administrators, manage local accounts, and configure OpenID Connect"
+---
+
+## First administrator
+
+After installation, visit `/platform/setup`. The first successful setup transaction creates a local administrator. The bootstrap operation is serialized in PostgreSQL so simultaneous submissions cannot create multiple first administrators.
+
+Use a unique, strong password. Local passwords are hashed with Argon2id.
+
+## Local users
+
+Administrators can create users from `/platform/admin` and assign either the `user` or `admin` role. They can also:
+
+- update display name and email;
+- rotate a user's local password;
+- disable or re-enable an account;
+- promote or demote users;
+- start, stop, restart, or purge workspace data.
+
+An administrator cannot disable or demote their own account.
+
+## OpenID Connect
+
+Register this exact callback with your identity provider:
+
+```text
+https://<host>/platform/auth/oidc/callback
+```
+
+In `/platform/admin`, configure:
+
+- issuer URL;
+- client ID and client secret;
+- whether just-in-time provisioning is enabled;
+- allowed email domains;
+- groups whose members become administrators.
+
+The provider must support discovery, authorization code flow, PKCE, and ID tokens. The configured scopes are `openid profile email`, and a verified email claim is required.
+
+<Tip>
+  Begin with just-in-time provisioning disabled. Validate a pre-provisioned account, then enable provisioning with a narrow allowed-domain list.
+</Tip>
+
+## Secret handling
+
+OIDC client secrets are encrypted with AES-GCM before storage. The key comes from `ENCRYPTION_KEY` in the application Secret.
+
+Back up that Secret. Replacing `ENCRYPTION_KEY` makes stored OIDC configuration unreadable. Replacing `SESSION_SECRET` invalidates active sessions.
+
+## Proxy authentication boundary
+
+The browser authenticates to the control plane. Before proxying to a workspace, the gateway removes platform cookies, CSRF tokens, and browser authorization headers, then adds a generated internal OpenCode Basic Auth credential. Users never receive that workspace credential directly.
