@@ -4,6 +4,35 @@ entries:
   - annotations:
       artifacthub.io/images: |
         - name: control-plane
+          image: ghcr.io/ricsam/opencode-workspaces-control-plane:0.2.0
+        - name: workspace
+          image: ghcr.io/ricsam/opencode-workspaces-workspace:0.2.0
+      artifacthub.io/license: MIT
+    apiVersion: v2
+    appVersion: 0.2.0
+    created: "2026-08-10T17:50:57.758676116Z"
+    description: Multi-user, isolated and persistent OpenCode workspaces for Kubernetes
+    digest: f249dd68476eba10e54f00bb98ed23c21b7edaf5024bfeb965437b4d026dd372
+    home: https://github.com/ricsam/opencode-workspaces
+    icon: https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/ui/src/assets/logo-ornate.svg
+    keywords:
+    - opencode
+    - development
+    - workspaces
+    maintainers:
+    - name: ricsam
+      url: https://github.com/ricsam
+    name: opencode-workspaces
+    sources:
+    - https://github.com/ricsam/opencode-workspaces
+    - https://github.com/anomalyco/opencode
+    type: application
+    urls:
+    - opencode-workspaces-0.2.0.tgz
+    version: 0.2.0
+  - annotations:
+      artifacthub.io/images: |
+        - name: control-plane
           image: ghcr.io/ricsam/opencode-workspaces-control-plane:0.1.0
         - name: workspace
           image: ghcr.io/ricsam/opencode-workspaces-workspace:0.1.0
@@ -30,4 +59,4 @@ entries:
     urls:
     - opencode-workspaces-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-10T15:19:32.962855552Z"
+generated: "2026-08-10T17:50:57.758681815Z"
