@@ -32,8 +32,10 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+        {{- range .Values.networkPolicy.controlPlaneKubernetesAPIPorts }}
         - protocol: TCP
-          port: 443
+          port: {{ . }}
+        {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

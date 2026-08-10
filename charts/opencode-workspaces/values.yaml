@@ -95,6 +95,7 @@ securityContext:
 
 networkPolicy:
   enabled: true
+  controlPlaneKubernetesAPIPorts: [443, 6443]
   workspaceInternetEgress: true
   workspaceClusterEgress: []
   # - namespace: ai-gateway

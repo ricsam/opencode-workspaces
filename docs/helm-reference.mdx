@@ -80,6 +80,7 @@ helm show values opencode-workspaces/opencode-workspaces --version <version>
 | `podSecurityContext` | Non-root UID/GID `65532` | Control-plane pod security context. |
 | `securityContext` | Read-only, no privilege escalation, all capabilities dropped | Control-plane container security context. |
 | `networkPolicy.enabled` | `true` | Create control-plane, workspace, and database policies. |
+| `networkPolicy.controlPlaneKubernetesAPIPorts` | `[443, 6443]` | Kubernetes API Service and translated server ports allowed from the control plane. |
 | `networkPolicy.workspaceInternetEgress` | `true` | Allow non-private IPv4 workspace egress. |
 | `networkPolicy.workspaceClusterEgress` | `[]` | Named namespaces and TCP ports that workspace pods may reach. |
 | `nodeSelector` | `{}` | Control-plane and bundled PostgreSQL node selector. |
