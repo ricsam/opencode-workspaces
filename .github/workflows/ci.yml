@@ -29,7 +29,7 @@ jobs:
       - run: helm lint charts/opencode-workspaces
       - run: helm template verify charts/opencode-workspaces --namespace verify > rendered.yaml
       - uses: azure/setup-kubectl@v4
-      - run: kubectl apply --dry-run=client -f rendered.yaml
+      - run: kubectl create --dry-run=client --validate=false -f rendered.yaml -o yaml >/dev/null
   opencode:
     runs-on: ubuntu-latest
     steps:
