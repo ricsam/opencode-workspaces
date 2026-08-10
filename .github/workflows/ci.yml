@@ -28,8 +28,10 @@ jobs:
       - uses: azure/setup-helm@v4
       - run: helm lint charts/opencode-workspaces
       - run: helm template verify charts/opencode-workspaces --namespace verify > rendered.yaml
-      - uses: azure/setup-kubectl@v4
-      - run: kubectl create --dry-run=client --validate=false -f rendered.yaml -o yaml >/dev/null
+      - name: Install kubeconform
+        run: curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar -xz kubeconform
+      - name: Validate rendered manifests
+        run: ./kubeconform -strict -summary rendered.yaml
   opencode:
     runs-on: ubuntu-latest
     steps:
