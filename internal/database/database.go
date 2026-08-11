@@ -195,6 +195,12 @@ func (s *Store) AuthenticateLocal(ctx context.Context, username string) (model.U
 	return user, hash, err
 }
 
+func (s *Store) HasLocalCredential(ctx context.Context, userID string) (bool, error) {
+	var exists bool
+	err := s.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM local_credentials WHERE user_id=$1)", userID).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) RecordLogin(ctx context.Context, userID string) {
 	s.Pool.Exec(ctx, "UPDATE users SET last_login_at=now() WHERE id=$1", userID) //nolint:errcheck
 }

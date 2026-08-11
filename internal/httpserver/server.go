@@ -34,17 +34,18 @@ type Server struct {
 	log        *slog.Logger
 }
 type viewData struct {
-	Title       string
-	Error       string
-	CSRF        string
-	User        model.User
-	Brand       model.Branding
-	OIDC        model.OIDCSettings
-	Workspace   model.Workspace
-	Status      model.WorkspaceStatus
-	Rows        []adminRow
-	Audit       []model.AuditEvent
-	CallbackURL string
+	Title        string
+	Error        string
+	CSRF         string
+	User         model.User
+	Brand        model.Branding
+	OIDC         model.OIDCSettings
+	HasLocalAuth bool
+	Workspace    model.Workspace
+	Status       model.WorkspaceStatus
+	Rows         []adminRow
+	Audit        []model.AuditEvent
+	CallbackURL  string
 }
 type adminRow struct {
 	User      model.User
@@ -208,6 +209,12 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	}
 	data := s.data(r)
 	data.User = user
+	var err error
+	data.HasLocalAuth, err = s.Store.HasLocalCredential(r.Context(), user.ID)
+	if err != nil {
+		s.error(w, r, err, 500)
+		return
+	}
 	data.Workspace, _ = s.Store.Workspace(r.Context(), user.ID)
 	data.Status, _ = s.Controller.Status(r.Context(), data.Workspace)
 	s.render(w, "home", data)
