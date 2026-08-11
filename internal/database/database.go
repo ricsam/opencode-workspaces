@@ -205,7 +205,16 @@ func scanUser(row pgx.Row) (model.User, error) {
 	return user, err
 }
 
-const userColumns = `id,username,display_name,COALESCE(email,''),role,disabled,created_at,COALESCE(last_login_at,'epoch')`
+var userColumns = userColumnsFor("")
+
+func userColumnsFor(relation string) string {
+	prefix := ""
+	if relation != "" {
+		prefix = relation + "."
+	}
+	return prefix + "id," + prefix + "username," + prefix + "display_name,COALESCE(" + prefix + "email,'')," +
+		prefix + "role," + prefix + "disabled," + prefix + "created_at,COALESCE(" + prefix + "last_login_at,'epoch')"
+}
 
 func (s *Store) UserByID(ctx context.Context, id string) (model.User, error) {
 	user, err := scanUser(s.Pool.QueryRow(ctx, "SELECT "+userColumns+" FROM users WHERE id=$1", id))
@@ -522,7 +531,7 @@ func (s *Store) AuditEvents(ctx context.Context, limit int) ([]model.AuditEvent,
 }
 
 func (s *Store) OIDCUser(ctx context.Context, issuer, subject string) (model.User, error) {
-	user, err := scanUser(s.Pool.QueryRow(ctx, `SELECT `+userColumns+` FROM users u JOIN oidc_identities i ON i.user_id=u.id WHERE i.issuer=$1 AND i.subject=$2`, issuer, subject))
+	user, err := scanUser(s.Pool.QueryRow(ctx, `SELECT `+userColumnsFor("u")+` FROM users u JOIN oidc_identities i ON i.user_id=u.id WHERE i.issuer=$1 AND i.subject=$2`, issuer, subject))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return user, ErrNotFound
 	}
